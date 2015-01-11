@@ -1,0 +1,1 @@
+This repo contains some useful utility classes for my other projects.
