@@ -4,9 +4,11 @@ organization := "com.geteit"
 
 version := "0.1"
 
-scalaVersion := "2.11.4"
+scalaVersion := "2.11.5"
 
-crossScalaVersions := Seq("2.10.0", "2.11.4")
+scalacOptions ++= Seq("-feature")
+
+crossScalaVersions := Seq("2.10.0", "2.11.5")
 
 libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
