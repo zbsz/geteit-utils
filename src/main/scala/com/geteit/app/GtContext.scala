@@ -2,12 +2,17 @@ package com.geteit.app
 
 import android.app.{Activity, Service}
 import android.content.res.Configuration
-import android.content.{Context, Intent}
+import android.content.{ContextWrapper, Context, Intent}
 import android.os.Bundle
+import android.preference.PreferenceManager
+import android.support.v4.app.{FragmentActivity, Fragment}
 import android.util.SparseArray
-import android.view.ViewConfiguration
+import android.view.View.OnClickListener
+import android.view.{ViewStub, View, ViewConfiguration}
 import com.geteit.events._
+import com.geteit.inject.Injectable
 import com.geteit.util.Log._
+import languageFeature.implicitConversions
 
 object GtContext {
   private implicit val tag: LogTag = "GtContext"
@@ -22,6 +27,11 @@ object GtContext {
   val onContextResumed = new Publisher[GtContext]
   val onContextDestroyed = new Publisher[GtContext]
 
+  implicit def apply(context: Context): GtContext = context match {
+    case ctx: GtContext => ctx
+    case wrapper: ContextWrapper => apply(wrapper.getBaseContext)
+    case _ => throw new IllegalArgumentException("Expecting GtContext, got: " + context)
+  }
 
   private lazy val configs = {
     try {
@@ -183,5 +193,67 @@ trait GtServiceContext extends Service with GtContext {
     super.onDestroy()
     eventContext.onContextStop()
     publishDestroy()
+  }
+}
+
+trait ViewFinder {
+  def findById[V <: View](id: Int) : V
+  def stub[V <: View](id: Int) : V = findById[ViewStub](id).inflate().asInstanceOf[V]
+
+  implicit def id_to_view[V <: View](id: Int) : V = findById[V](id)
+}
+
+trait ViewHelper extends View with ViewFinder with Injectable with ViewEventContext {
+  lazy implicit val con: GtContext = getContext
+
+  def findById[V <: View](id: Int) = findViewById(id).asInstanceOf[V]
+  def visible = getVisibility == View.VISIBLE
+  def onClick(f: => Any) { setOnClickListener(new OnClickListener { def onClick(v: View) { f }}) }
+}
+
+trait FragmentHelper extends Fragment with ViewFinder with Injectable with FragmentEventContext {
+  lazy implicit val context = getActivity.asInstanceOf[GtActivityContext]
+  lazy val defaultPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+  implicit def holder_to_view[T <: View](h: ViewHolder[T]): T = h.get
+  private var views: List[ViewHolder[_]] = Nil
+
+  def findById[V <: View](id: Int) = {
+    val res = getView.findViewById(id)
+    if (res != null) res.asInstanceOf[V]
+    else getActivity.findViewById(id).asInstanceOf[V]
+  }
+  def view[V <: View](id: Int) = {
+    val h = new ViewHolder[V](id, this)
+    views ::= h
+    h
+  }
+
+  override def onDestroyView() {
+    super.onDestroyView()
+    views foreach(_.clear())
+  }
+}
+
+trait ActivityHelper extends Activity with ViewFinder with Injectable with GtActivityContext {
+  lazy implicit val context: GtContext = this
+  lazy val defaultPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+
+  def findById[V <: View](id: Int) = findViewById(id).asInstanceOf[V]
+
+  def findFragment[T](id: Int) : T = {
+    this.asInstanceOf[FragmentActivity].getSupportFragmentManager.findFragmentById(id).asInstanceOf[T]
+  }
+}
+
+class ViewHolder[T <: View](id: Int, finder: ViewFinder) {
+  var view: T = null.asInstanceOf[T]
+
+  def get: T = {
+    if (view == null) view = finder.findById(id)
+    view
+  }
+
+  def clear() {
+    view = null.asInstanceOf[T]
   }
 }
