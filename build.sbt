@@ -1,18 +1,26 @@
+import android.Keys._
+
+android.Plugin.androidBuildAar
+
+platformTarget in Android := "android-22"
+
 name := "geteit-utils"
 
 organization := "com.geteit"
 
 version := "0.1"
 
-scalaVersion := "2.11.5"
+scalaVersion := "2.11.6"
 
 scalacOptions ++= Seq("-feature")
 
-crossScalaVersions := Seq("2.10.0", "2.11.5")
+crossScalaVersions := Seq("2.10.0", "2.11.6")
 
 libraryDependencies ++= Seq(
-  "org.scalatest" %% "scalatest" % "2.2.1" % "test",
-  "org.scalacheck" %% "scalacheck" % "1.11.6" % "test"
+  "com.android.support" % "support-v4" % "21.0.0",
+  "org.robolectric" % "android-all" % "5.0.0_r2-robolectric-0" % Test,
+  "org.scalatest" %% "scalatest" % "2.2.1" % Test,
+  "org.scalacheck" %% "scalacheck" % "1.11.6" % Test
 )
 
 publishTo := {
