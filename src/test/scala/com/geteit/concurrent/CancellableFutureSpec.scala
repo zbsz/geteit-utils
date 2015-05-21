@@ -67,7 +67,7 @@ class CancellableFutureSpec extends FeatureSpec with Matchers with BeforeAndAfte
     }
 
     scenario("Cancel delayed") {
-      val future = CancellableFuture.delayed(200.millis, 1)
+      val future = CancellableFuture.delayed(200.millis)(1)
 
       intercept[CancelException.type] {
         future.cancel()
@@ -80,7 +80,7 @@ class CancellableFutureSpec extends FeatureSpec with Matchers with BeforeAndAfte
     scenario("Await for mapped result") {
       Await.result(CancellableFuture { 1 } map (_ + 1), 10.millis) shouldEqual 2
       Await.result(CancellableFuture { 1 } map (_ + 1) map (_ + 1), 10.millis) shouldEqual 3
-      Await.result(CancellableFuture.delayed(100.millis, 1) map (_ + 1), 120.millis) shouldEqual 2
+      Await.result(CancellableFuture.delayed(100.millis)(1) map (_ + 1), 120.millis) shouldEqual 2
     }
 
     scenario("Cancel mapped future before map is executed") {
@@ -224,7 +224,7 @@ class CancellableFutureSpec extends FeatureSpec with Matchers with BeforeAndAfte
       val future = CancellableFuture.delay(100.millis)
       val future1 = future flatMap { _ =>
         mapped = true
-        CancellableFuture.delayed(100.millis, completed = true)
+        CancellableFuture.delayed(100.millis)(completed = true)
       }
       future.cancel()
       intercept[CancelException.type] {
@@ -240,7 +240,7 @@ class CancellableFutureSpec extends FeatureSpec with Matchers with BeforeAndAfte
       val future = CancellableFuture.delay(10.millis)
       val future1 = future flatMap { _ =>
         mapped = true
-        CancellableFuture.delayed(100.millis, completed = true)
+        CancellableFuture.delayed(100.millis)(completed = true)
       }
       Thread.sleep(20)
       future.cancel()
@@ -253,7 +253,7 @@ class CancellableFutureSpec extends FeatureSpec with Matchers with BeforeAndAfte
       @volatile var completed = false
 
       def sum(n: Int, acc: Int = 0): CancellableFuture[Int] = CancellableFuture { n } flatMap {
-        case 0 => CancellableFuture.delayed(2.seconds, { completed = true; acc })
+        case 0 => CancellableFuture.delayed(2.seconds)({ completed = true; acc })
         case s => sum(s - 1, acc + s)
       }
 

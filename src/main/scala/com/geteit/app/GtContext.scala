@@ -12,7 +12,7 @@ import android.view.{ViewStub, View, ViewConfiguration}
 import com.geteit.events._
 import com.geteit.inject.Injectable
 import com.geteit.util.Log._
-import languageFeature.implicitConversions
+import language.implicitConversions
 
 object GtContext {
   private implicit val tag: LogTag = "GtContext"
@@ -100,9 +100,6 @@ trait GtContext extends Context {
   val ctxCreate = new Signal[Boolean](false)
   val ctxDestroyed = new Signal[Boolean](false) with ForcedEventSource[Boolean]
 
-  @deprecated
-  val ctxDestroy = new Publisher[Null] with ForcedEventSource[Null]
-
   val ctxPause = new Publisher[Null] with ForcedEventSource[Null]
   val ctxResume = new Publisher[Null] with ForcedEventSource[Null]
   val ctxConfigChanged = new Publisher[Configuration] with ForcedEventSource[Configuration]
@@ -115,12 +112,10 @@ trait GtContext extends Context {
 
   protected def publishDestroy() {
     ctxDestroyed ! true
-    ctxDestroy ! null
     GtContext.onContextDestroyed ! this
 
     ctxCreate.unsubscribeAll()
     ctxDestroyed.unsubscribeAll()
-    ctxDestroy.unsubscribeAll()
     ctxPause.unsubscribeAll()
     ctxResume.unsubscribeAll()
     ctxConfigChanged.unsubscribeAll()

@@ -1,31 +1,77 @@
 import android.Keys._
+import sbt.Keys._
 
-android.Plugin.androidBuildAar
+lazy val root = Project("geteit-utils", file("."))
+  .settings(android.Plugin.androidBuildAar: _*)
+  .settings(buildSettings: _*)
+  .settings(
+    name := "geteit-utils",
+    version := "0.2",
+    platformTarget in Android := "android-22",
+    libraryDependencies ++= Seq(
+      "com.android.support" % "support-v4" % "21.0.0",
+      "org.scalatest" %% "scalatest" % "2.2.1" % Test,
+      "org.scalacheck" %% "scalacheck" % "1.11.6" % Test,
+      "org.robolectric" % "android-all" % "5.0.0_r2-robolectric-0" % Provided,
+      "com.geteit" %% "robotest" % "0.7" % Test,
+      "junit" % "junit" % "4.8.2" % Test
+    )
+  )
+  .aggregate(macros)
+  .dependsOn(macros)
 
-platformTarget in Android := "android-22"
+lazy val macros = project
+  .settings(buildSettings: _*)
+  .settings(macroProjectSettings: _*)
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.google.code.gson" % "gson" % "2.3.1"
+    )
+  )
 
-name := "geteit-utils"
+lazy val buildSettings = Seq(
+  organization := "com.geteit",
+  version := "0.1.0-SNAPSHOT",
+  scalaVersion := "2.11.6",
+  crossScalaVersions := Seq("2.10.5", "2.11.6"),
+  scalacOptions ++= Seq(
+    "-deprecation",
+    "-feature",
+    "-unchecked"
+  ),
+  resolvers ++= Seq(
+    "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository",
+    "RoboTest releases" at "https://raw.github.com/zbsz/mvn-repo/master/releases/",
+    Resolver.sonatypeRepo("snapshots"),
+    Resolver.sonatypeRepo("releases")
+  ),
+  publishTo := {
+    if (version.value.trim.endsWith("SNAPSHOT"))
+      Some(Resolver.file("snapshots", new File("../mvn-repo/snapshots" )) )
+    else
+      Some(Resolver.file("releases", new File("../mvn-repo/releases" )) )
+  },
+  fork in Test := true,
+  publishArtifact in Test := false,
+  javaOptions in Test ++= Seq("-XX:MaxPermSize=2048M", "-XX:+CMSClassUnloadingEnabled"),
 
-organization := "com.geteit"
-
-version := "0.1"
-
-scalaVersion := "2.11.6"
-
-scalacOptions ++= Seq("-feature")
-
-crossScalaVersions := Seq("2.10.0", "2.11.6")
-
-libraryDependencies ++= Seq(
-  "com.android.support" % "support-v4" % "21.0.0",
-  "org.robolectric" % "android-all" % "5.0.0_r2-robolectric-0" % Test,
-  "org.scalatest" %% "scalatest" % "2.2.1" % Test,
-  "org.scalacheck" %% "scalacheck" % "1.11.6" % Test
+  /** We need the Macro Paradise plugin both to support the macro
+    * annotations used in the public type provider implementation and to
+    * allow us to use quasiquotes in both implementations. The anonymous
+    * type providers could easily (although much less concisely) be
+    * implemented without the plugin.
+    */
+  addCompilerPlugin(paradiseDependency)
 )
 
-publishTo := {
-  if (version.value.trim.endsWith("SNAPSHOT"))
-    Some(Resolver.file("snapshots", new File("../mvn-repo/snapshots" )) )
-  else
-    Some(Resolver.file("releases", new File("../mvn-repo/releases" )) )
-}
+lazy val paradiseDependency = "org.scalamacros" % "paradise" % "2.1.0-M5" cross CrossVersion.full
+
+lazy val macroProjectSettings = Seq(
+  libraryDependencies <+= (scalaVersion)(
+    "org.scala-lang" % "scala-reflect" % _ % Provided
+  ),
+  libraryDependencies ++= (
+    if (scalaVersion.value.startsWith("2.10")) List(paradiseDependency) else Nil
+    ),
+  libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3" % "compile"
+)

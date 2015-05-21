@@ -1,9 +1,10 @@
 package com.geteit.events
 
-import android.app.{Service, Fragment}
+import android.app.Service
 import android.view.View
 import scala.ref.WeakReference
 import android.content.Loader
+import android.support.v4.app.Fragment
 
 trait EventContext {
   private object lock
