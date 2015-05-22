@@ -30,7 +30,17 @@ class JsonEncoderSpec extends FeatureSpec with Matchers with RobolectricSuite {
   object EntityCollection {
     implicit val Encoder = JsonEncoder[EntityCollection]
   }
-  
+
+  case class Value(str: String)
+  object Value {
+    implicit val Encoder = JsonEncoder.valueEncoder[Value]
+  }
+
+  case class Obj(v: Value)
+  object Obj {
+    implicit val Encoder = JsonEncoder[Obj]
+  }
+
   def encode[A: JsonEncoder](value: A) = {
     val out = new StringWriter()
     val writer = new JsonWriter(out)
@@ -50,6 +60,10 @@ class JsonEncoderSpec extends FeatureSpec with Matchers with RobolectricSuite {
   scenario("Encode simple entity") {
     encode(Entity(1, 0f, "", None)) shouldEqual """{"int":1}"""
     encode(Entity(2, 1f, "test", Some("str"))) shouldEqual """{"int":2,"float":1.0,"str":"test","opt":"str"}"""
+  }
+
+  scenario("Encode value") {
+    encode(Obj(Value("str"))) shouldEqual """{"v":"str"}"""
   }
 
   scenario("Encode Entity1") {

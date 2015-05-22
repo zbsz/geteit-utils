@@ -16,6 +16,18 @@ class JsonAnnotationSpec extends FeatureSpec with Matchers with RobolectricSuite
     def apply(str: String): Entity1 = Entity1(Some(Array(Seq(str))))
   }
 
+  @JsonValue
+  case class Value(v: String)
+
+  @JsonValue
+  case class EntValue(e: Entity)
+
+  @Json
+  case class Obj(v: Value)
+
+  @Json
+  case class Obj1(v: EntValue)
+
   def reader(json: String) = new JsonReader(new StringReader(json))
 
   scenario("Read entity") {
@@ -47,14 +59,20 @@ class JsonAnnotationSpec extends FeatureSpec with Matchers with RobolectricSuite
     implicitly[JsonDecoder[Entity1]] should not be null
     implicitly[JsonEncoder[Entity]] should not be null
     implicitly[JsonEncoder[Entity1]] should not be null
+    implicitly[JsonEncoder[Value]] should not be null
+    implicitly[JsonEncoder[EntValue]] should not be null
   }
 
   scenario("Decode json string") {
     implicitly[JsonDecoder[Entity]].apply(reader("""{ "int": 1 }""")) shouldEqual Entity(1, 0f, "", None)
+    implicitly[JsonDecoder[Obj]].apply(reader("""{"v": "str"}""")) shouldEqual Obj(Value("str"))
+    implicitly[JsonDecoder[Obj1]].apply(reader("""{ "v": { "int": 1 }}""")) shouldEqual Obj1(EntValue(Entity(1, 0f, "", None)))
   }
 
   scenario("Encode entity") {
     encode(Entity(1, 0f, "", None)) shouldEqual """{"int":1}"""
     encode(Entity(2, 1f, "test", Some("str"))) shouldEqual """{"int":2,"float":1.0,"str":"test","opt":"str"}"""
+    encode(Obj(Value("str"))) shouldEqual """{"v":"str"}"""
+    encode(Obj1(EntValue(Entity(1, 0f, "", None)))) shouldEqual """{"v":{"int":1}}"""
   }
 }

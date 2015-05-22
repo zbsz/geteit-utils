@@ -30,7 +30,15 @@ class JsonDecoderSpec extends FeatureSpec with Matchers with RobolectricSuite {
   object EntityCollection {
     implicit val Decoder = JsonDecoder[EntityCollection]
   }
-  
+  case class Value(str: String)
+  object Value {
+    implicit val Decoder = JsonDecoder.valueDecoder[Value]
+  }
+
+  case class Obj(v: Value)
+  object Obj {
+    implicit val Decoder = JsonDecoder[Obj]
+  }
   def reader(json: String) = new JsonReader(new StringReader(json))
 
   scenario("Read entity") {
@@ -63,6 +71,10 @@ class JsonDecoderSpec extends FeatureSpec with Matchers with RobolectricSuite {
 
   scenario("Decode json string") {
     implicitly[JsonDecoder[Entity]].apply(reader("""{ "int": 1 }""")) shouldEqual Entity(1, 0f, "", None)
+  }
+
+  scenario("Decode value") {
+    implicitly[JsonDecoder[Obj]].apply(reader("""{ "v": "str" }""")) shouldEqual Obj(Value("str"))
   }
 
   scenario("Decode null opt value") {
