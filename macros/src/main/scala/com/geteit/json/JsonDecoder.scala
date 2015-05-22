@@ -76,9 +76,9 @@ object JsonDecoder {
 
     val reader = TermName("$reader")
 
-    val cases = fields.map { case (name, tpe) => CaseDef(Literal(Constant(name)), q"${TermName(name)} = ${readValue(tpe, reader)}") }
+    val cases = fields.map { case (name, tpe) => cq"$name => ${TermName(name)} = ${readValue(tpe, reader)}" }
 
-    val defaultCase = CaseDef(Ident(TermName("_")), q"$reader.skipValue()")
+    val defaultCase = cq"_ => $reader.skipValue()"
 
     val nameMatch = Match(q"$reader.nextName", cases :+ defaultCase)
 
