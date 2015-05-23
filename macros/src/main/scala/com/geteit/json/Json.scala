@@ -46,8 +46,8 @@ trait JsonMacro {
         val q"object $obj extends ..$bases { ..$body }" = compDecl
         q"""
           object $obj extends ..$bases {
-            ..$body
             ..$codecs
+            ..$body
           }
         """
       } getOrElse {

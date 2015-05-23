@@ -1,6 +1,7 @@
 package com.geteit.json
 
-import java.io.StringReader
+import java.io.{File, StringReader}
+import java.util.Date
 
 import com.google.gson.stream.JsonReader
 
@@ -21,6 +22,13 @@ object JsonDecoder {
   def apply[T]: JsonDecoder[T] = macro impl[T]
 
   def valueDecoder[T]: JsonDecoder[T] = macro valueImpl[T]
+
+  def apply[T](f: JsonReader => T) = new JsonDecoder[T] {
+    override def apply(reader: JsonReader): T = f(reader)
+  }
+
+  implicit val FileDecoder: JsonDecoder[File] = apply(reader => new File(reader.nextString()))
+  implicit val DateDecoder: JsonDecoder[Date] = apply(reader => new Date(reader.nextLong()))
 
   def impl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[JsonDecoder[T]] = {
     import c.universe._
@@ -46,7 +54,7 @@ object JsonDecoder {
 
     c.Expr[JsonDecoder[T]](
       q"""
-          new JsonDecoder[$sym] {
+          new com.geteit.json.JsonDecoder[$sym] {
             import com.google.gson.stream._
             override def apply($reader: JsonReader): $sym = {
               ..$vars
@@ -78,7 +86,7 @@ object JsonDecoder {
 
     c.Expr[JsonDecoder[T]](
       q"""
-          new JsonDecoder[$sym] {
+          new com.geteit.json.JsonDecoder[$sym] {
             import com.google.gson.stream._
             override def apply($reader: JsonReader): $sym = {
               new $sym(${readValue(c)(tpe, reader)})
@@ -103,7 +111,7 @@ object JsonDecoder {
         val value = readValue(c)(tpe.typeArgs.head, reader)
         q"if ($reader.peek() == JsonToken.NULL) { $reader.skipValue(); None } else Option($value)"
       case "Seq" | "Array" | "List" => readArray(c)(tpe, reader)
-      case _ => q"implicitly[JsonDecoder[$tpe]].apply($reader)"
+      case _ => q"implicitly[com.geteit.json.JsonDecoder[$tpe]].apply($reader)"
     }
   }
 

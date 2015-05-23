@@ -6,10 +6,10 @@ lazy val root = Project("geteit-utils", file("."))
   .settings(buildSettings: _*)
   .settings(
     name := "geteit-utils",
-    version := "0.2",
     platformTarget in Android := "android-22",
+    transitiveAndroidLibs in Android := true,
     libraryDependencies ++= Seq(
-      "com.android.support" % "support-v4" % "21.0.0",
+      "com.android.support" % "support-v4" % "22.0.0",
       "org.scalatest" %% "scalatest" % "2.2.1" % Test,
       "org.scalacheck" %% "scalacheck" % "1.11.6" % Test,
       "org.robolectric" % "android-all" % "5.0.0_r2-robolectric-0" % Provided,
@@ -24,6 +24,7 @@ lazy val macros = project
   .settings(buildSettings: _*)
   .settings(macroProjectSettings: _*)
   .settings(
+    name := "geteit-util-macros",
     libraryDependencies ++= Seq(
       "com.google.code.gson" % "gson" % "2.3.1"
     )
@@ -31,7 +32,7 @@ lazy val macros = project
 
 lazy val buildSettings = Seq(
   organization := "com.geteit",
-  version := "0.1.0-SNAPSHOT",
+  version := "0.3-SNAPSHOT",
   scalaVersion := "2.11.6",
   crossScalaVersions := Seq("2.10.5", "2.11.6"),
   scalacOptions ++= Seq(
@@ -68,10 +69,9 @@ lazy val paradiseDependency = "org.scalamacros" % "paradise" % "2.1.0-M5" cross 
 
 lazy val macroProjectSettings = Seq(
   libraryDependencies <+= (scalaVersion)(
-    "org.scala-lang" % "scala-reflect" % _ % Provided
+    "org.scala-lang" % "scala-reflect" % _
   ),
   libraryDependencies ++= (
     if (scalaVersion.value.startsWith("2.10")) List(paradiseDependency) else Nil
-    ),
-  libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3" % "compile"
+  )
 )

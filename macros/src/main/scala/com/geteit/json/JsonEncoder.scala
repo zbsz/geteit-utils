@@ -1,6 +1,7 @@
 package com.geteit.json
 
-import java.io.StringWriter
+import java.io.{File, StringWriter}
+import java.util.Date
 
 import com.google.gson.stream.JsonWriter
 
@@ -26,6 +27,14 @@ object JsonEncoder {
   def apply[T]: JsonEncoder[T] = macro impl[T]
 
   def valueEncoder[T]: JsonEncoder[T] = macro valueImpl[T]
+
+  def apply[T](f: (JsonWriter, T) => Unit) = new JsonEncoder[T] {
+    override def apply(v: T, writer: JsonWriter): Unit = f(writer, v)
+  }
+
+  implicit val FileEncoder: JsonEncoder[File] = apply((w, f) => w.value(f.getAbsolutePath))
+  implicit val DateEncoder: JsonEncoder[Date] = apply((w, d) => w.value(d.getTime))
+
 
   def impl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[JsonEncoder[T]] = {
     import c.universe._
@@ -65,7 +74,7 @@ object JsonEncoder {
 
     c.Expr[JsonEncoder[T]](
       q"""
-          new JsonEncoder[$sym] {
+          new com.geteit.json.JsonEncoder[$sym] {
             import com.google.gson.stream._
             override def apply($value: $sym, $writer: JsonWriter): Unit = {
               $writer.beginObject()
@@ -94,7 +103,7 @@ object JsonEncoder {
 
     c.Expr[JsonEncoder[T]](
       q"""
-          new JsonEncoder[$sym] {
+          new com.geteit.json.JsonEncoder[$sym] {
             import com.google.gson.stream._
             override def apply($value: $sym, $writer: JsonWriter): Unit = {
               val $v = $value.${TermName(name)}
@@ -123,7 +132,7 @@ object JsonEncoder {
             $foreach
             $writer.endArray()
          """
-      case _ => q"implicitly[JsonEncoder[$tpe]].apply($value, $writer)"
+      case _ => q"implicitly[com.geteit.json.JsonEncoder[$tpe]].apply($value, $writer)"
     }
   }
 
