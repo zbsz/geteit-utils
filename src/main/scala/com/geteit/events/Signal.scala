@@ -86,7 +86,7 @@ abstract class SignalWrapper[E](v: E) extends Signal[E](v) {
 
   override def currentValue: E = {
     if (!wired) {
-      warn("Accessing value of unwired signal, autowiring will be disabled")(logTagFor[SignalWrapper[_]])
+      warn(s"Accessing value of unwired signal ($this: $value), autowiring will be disabled")(s"SignalWrapper[]")
       disableAutowiring()
     }
     value

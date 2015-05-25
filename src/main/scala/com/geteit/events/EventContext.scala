@@ -72,7 +72,7 @@ object EventContext {
     implicit val global: EventContext = EventContext.Global
   }
 
-  val Global: EventContext = new EventContext {
+  object Global extends EventContext {
     override private[events] def register(observer: EventObserver[_]): Unit = () // do nothing, global context will never need the observers (can not be stopped)
     override private[events] def unregister(observer: EventObserver[_]): Unit = ()
     override def onContextStart(): Unit = ()

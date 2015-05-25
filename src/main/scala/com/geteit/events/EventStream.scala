@@ -4,21 +4,21 @@ import com.geteit.concurrent.CancellableFuture
 
 import scala.concurrent.{ExecutionContext, Promise}
 
-object Stream {
-  def union[A](streams: Stream[A]*): Stream[A] = new UnionStream(streams: _*)
+object EventStream {
+  def union[A](streams: EventStream[A]*): EventStream[A] = new UnionEventStream(streams: _*)
 
-  def apply[E](publisher: Publisher[E]): Stream[E] = new ProxyStream[E, E](publisher) {
+  def apply[E](publisher: Publisher[E]): EventStream[E] = new ProxyEventStream[E, E](publisher) {
     override protected def onEvent(event: E, sourceContext: Option[ExecutionContext]): Unit = dispatch(event, sourceContext)
   }
 }
 
-class Stream[E] extends Publisher[E] {
+class EventStream[E] extends Publisher[E] {
 
   def foreach(op: E => Unit)(implicit context: EventContext): Unit = apply(op)(context)
 
-  def map[V](f: E => V): Stream[V] = new MapStream[E, V](this, f)
-  def filter(f: E => Boolean): Stream[E] = new FilterStream[E](this, f)
-  def scan[V](zero: V)(f: (V, E) => V): Stream[V] = new ScanStream[E, V](this, zero, f)
+  def map[V](f: E => V): EventStream[V] = new MapEventStream[E, V](this, f)
+  def filter(f: E => Boolean): EventStream[E] = new FilterEventStream[E](this, f)
+  def scan[V](zero: V)(f: (V, E) => V): EventStream[V] = new ScanEventStream[E, V](this, zero, f)
 
   def next(implicit context: EventContext): CancellableFuture[E] = {
     val p = Promise[E]()
@@ -81,12 +81,12 @@ class Stream[E] extends Publisher[E] {
   }
 }
 
-abstract class ProxyStream[A, E](sources: Publisher[A]*) extends Stream[E] {
+abstract class ProxyEventStream[A, E](sources: Publisher[A]*) extends EventStream[E] {
 
   private val delegate = new Publisher[A] {
-    protected[events] override def dispatch(event: A, sourceContext: Option[ExecutionContext]): Unit = ProxyStream.this.onEvent(event, sourceContext)
-    override def hasSubscribers: Boolean = ProxyStream.this.hasSubscribers
-    override def unsubscribeAll(): Unit = ProxyStream.this.unsubscribeAll()
+    protected[events] override def dispatch(event: A, sourceContext: Option[ExecutionContext]): Unit = ProxyEventStream.this.onEvent(event, sourceContext)
+    override def hasSubscribers: Boolean = ProxyEventStream.this.hasSubscribers
+    override def unsubscribeAll(): Unit = ProxyEventStream.this.unsubscribeAll()
   }
 
   protected def onEvent(event: A, sourceContext: Option[ExecutionContext]): Unit
@@ -100,19 +100,19 @@ abstract class ProxyStream[A, E](sources: Publisher[A]*) extends Stream[E] {
   }
 }
 
-class MapStream[E, V](source: Stream[E], f: E => V) extends ProxyStream[E, V](source) {
+class MapEventStream[E, V](source: EventStream[E], f: E => V) extends ProxyEventStream[E, V](source) {
   override protected def onEvent(event: E, sourceContext: Option[ExecutionContext]): Unit = dispatch(f(event), sourceContext)
 }
 
-class FilterStream[E](source: Stream[E], f: E => Boolean) extends ProxyStream[E, E](source) {
+class FilterEventStream[E](source: EventStream[E], f: E => Boolean) extends ProxyEventStream[E, E](source) {
   override protected def onEvent(event: E, sourceContext: Option[ExecutionContext]): Unit = if (f(event)) dispatch(event, sourceContext)
 }
 
-class UnionStream[E](sources: Stream[E]*) extends ProxyStream[E, E](sources: _*) {
+class UnionEventStream[E](sources: EventStream[E]*) extends ProxyEventStream[E, E](sources: _*) {
   override protected def onEvent(event: E, sourceContext: Option[ExecutionContext]): Unit = dispatch(event, sourceContext)
 }
 
-class ScanStream[E, V](source: Stream[E], zero: V, f: (V, E) => V) extends ProxyStream[E, V] {
+class ScanEventStream[E, V](source: EventStream[E], zero: V, f: (V, E) => V) extends ProxyEventStream[E, V] {
   @volatile private var value = zero
 
   override protected def onEvent(event: E, sourceContext: Option[ExecutionContext]): Unit = {
