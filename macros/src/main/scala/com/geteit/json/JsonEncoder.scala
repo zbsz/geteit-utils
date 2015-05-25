@@ -3,8 +3,10 @@ package com.geteit.json
 import java.io.{File, StringWriter}
 import java.util.Date
 
+import android.net.Uri
 import com.google.gson.stream.JsonWriter
 
+import scala.concurrent.duration.FiniteDuration
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 
@@ -34,6 +36,8 @@ object JsonEncoder {
 
   implicit val FileEncoder: JsonEncoder[File] = apply((w, f) => w.value(f.getAbsolutePath))
   implicit val DateEncoder: JsonEncoder[Date] = apply((w, d) => w.value(d.getTime))
+  implicit val UriEncoder: JsonEncoder[Uri] = apply((w, u) => w.value(u.toString))
+  implicit val FiniteDurationEncoder: JsonEncoder[FiniteDuration] = apply((w, d) => w.value(d.toNanos))
 
 
   def impl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[JsonEncoder[T]] = {

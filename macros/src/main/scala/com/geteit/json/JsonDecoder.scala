@@ -3,8 +3,10 @@ package com.geteit.json
 import java.io.{File, StringReader}
 import java.util.Date
 
+import android.net.Uri
 import com.google.gson.stream.JsonReader
 
+import scala.concurrent.duration._
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 
@@ -29,6 +31,8 @@ object JsonDecoder {
 
   implicit val FileDecoder: JsonDecoder[File] = apply(reader => new File(reader.nextString()))
   implicit val DateDecoder: JsonDecoder[Date] = apply(reader => new Date(reader.nextLong()))
+  implicit val UriDecoder: JsonDecoder[Uri] = apply(reader => Uri.parse(reader.nextString()))
+  implicit val FiniteDurationDecoder: JsonDecoder[FiniteDuration] = apply(_.nextLong().nanos)
 
   def impl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[JsonDecoder[T]] = {
     import c.universe._

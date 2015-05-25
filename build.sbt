@@ -26,7 +26,8 @@ lazy val macros = project
   .settings(
     name := "geteit-util-macros",
     libraryDependencies ++= Seq(
-      "com.google.code.gson" % "gson" % "2.3.1"
+      "com.google.code.gson" % "gson" % "2.3.1",
+      "org.robolectric" % "android-all" % "5.0.0_r2-robolectric-0" % Provided
     )
   )
 
