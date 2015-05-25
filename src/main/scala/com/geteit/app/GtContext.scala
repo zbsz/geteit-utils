@@ -17,7 +17,7 @@ import language.implicitConversions
 object GtContext {
   private implicit val tag: LogTag = "GtContext"
 
-  val Global: GtContext = GtApplication.APP_INSTANCE
+  var Global: GtContext = null
 
   object globals {
     implicit val context = GtContext.Global

@@ -3,6 +3,7 @@ package com.geteit.inject
 import android.app.Activity
 import android.content.{ContentResolver, Context}
 import com.geteit.app.{GtApplication, GtContext}
+import com.geteit.events.EventContext
 import com.geteit.util.AtomicUpdateMap
 import com.geteit.util.GtAssert
 
@@ -50,7 +51,7 @@ trait Injectable {
 
 trait GtSingleton {
   implicit val context = GtContext.Global
-  implicit val eventContext = context.eventContext
+  implicit val eventContext = EventContext.Global
 }
 
 trait GtContextSingleton {

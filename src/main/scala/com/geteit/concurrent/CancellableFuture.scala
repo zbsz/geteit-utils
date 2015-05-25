@@ -3,6 +3,7 @@ package com.geteit.concurrent
 import java.util.TimerTask
 
 import com.geteit.concurrent.CancellableFuture.CancelException
+import com.geteit.util.LoggedTry
 
 import scala.concurrent._
 import scala.concurrent.duration.{Duration, FiniteDuration}
@@ -119,6 +120,13 @@ class CancellableFuture[+A](promise: Promise[A]) extends Awaitable[A] { self =>
 
   @throws[Exception](classOf[Exception])
   override def result(atMost: Duration)(implicit permit: CanAwait): A = future.result(atMost)
+
+  def withTimeout(timeout: FiniteDuration): CancellableFuture[A] = {
+    implicit val ec = CancellableFuture.internalExecutionContext
+    val f = CancellableFuture.delayed(timeout)(this.promise.tryFailure(new TimeoutException(s"withTimeout($timeout) elapsed")))
+    onComplete(_ => f.cancel())
+    this
+  }
 }
 
 object CancellableFuture {
@@ -134,9 +142,7 @@ object CancellableFuture {
 
     override def run() = {
       if (!promise.isCompleted)
-        promise tryComplete {
-          try Success(body) catch { case NonFatal(e) => Failure(e) }
-        }
+        promise tryComplete LoggedTry(body)("CancellableFuture")
     }
   }
   

@@ -13,6 +13,7 @@ object GtApplication {
 
 class GtApplication extends Application with GtContext {
 
+  GtContext.Global = this
   GtApplication.APP_INSTANCE = this
 
   override def onCreate() {

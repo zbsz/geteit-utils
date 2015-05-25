@@ -3,6 +3,8 @@ package com.geteit.concurrent
 import java.util.concurrent.{Executors, ConcurrentLinkedQueue}
 import java.util.concurrent.atomic.AtomicInteger
 
+import com.geteit.util.Log
+
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
 
@@ -15,7 +17,10 @@ class LimitedExecutionContext(concurrencyLimit: Int = 1, parent: ExecutionContex
 
   override def execute(runnable: Runnable): Unit = Executor.dispatch(runnable)
 
-  override def reportFailure(cause: Throwable): Unit = parent.reportFailure(cause)
+  override def reportFailure(cause: Throwable): Unit = {
+    Log.error("reportFailure", cause)("LimitedExecutionContext")
+    parent.reportFailure(cause)
+  }
 
   private object Executor extends Runnable {
 
