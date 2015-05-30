@@ -16,10 +16,10 @@ object Signal {
 
   def throttled[E](s: Signal[E], delay: FiniteDuration): Signal[E] = new ThrottlingSignal(s, delay)
 
-  def mix[E](sources: Signal[_]*)(f: => E): SignalWrapper[E] = new ProxySignal(sources: _*)(f)
-  def foldLeft[E,V](sources: Signal[E]*)(v: V)(f: (V, E) => V): SignalWrapper[V] = new FoldLeftSignal[E,V](sources: _*)(v)(f)
-  def and(sources: Signal[Boolean]*): SignalWrapper[Boolean] = new FoldLeftSignal[Boolean, Boolean](sources: _*)(true)(_ && _)
-  def or(sources: Signal[Boolean]*): SignalWrapper[Boolean] = new FoldLeftSignal[Boolean, Boolean](sources: _*)(true)(_ || _)
+  def mix[E](sources: Signal[_]*)(f: => E): Signal[E] = new ProxySignal(sources: _*)(f)
+  def foldLeft[E,V](sources: Signal[E]*)(v: V)(f: (V, E) => V): Signal[V] = new FoldLeftSignal[E,V](sources: _*)(v)(f)
+  def and(sources: Signal[Boolean]*): Signal[Boolean] = new FoldLeftSignal[Boolean, Boolean](sources: _*)(true)(_ && _)
+  def or(sources: Signal[Boolean]*): Signal[Boolean] = new FoldLeftSignal[Boolean, Boolean](sources: _*)(true)(_ || _)
 
   def const[E](value: E): Signal[E] = new ConstantSignal[E](value)
 
@@ -27,7 +27,7 @@ object Signal {
     future.onSuccess { case res => signal.dispatch(res, Some(Threading.global)) } (Threading.global)
   }
 
-  def wrap[E](init: E, source: Publisher[E]): Signal[E] = new SignalWrapper[E](init) {
+  def wrap[E](init: E, source: Publisher[E]): Signal[E] = new Signal[E](init) {
     override protected def onWire(): Unit = source += this
     override protected def onUnwire(): Unit = source -= this
   }
@@ -38,18 +38,40 @@ object Signal {
 class Signal[E](@volatile protected[events] var value: E) extends Publisher[E] {
   protected val cachingDisabled = false
 
-  def currentValue = value
+  private val lock = new Object
+  @volatile protected[events] var wired = false
+  @volatile protected[events] var autoWiring = true
 
   protected lazy val _changed = Publisher[E](executionContext)
 
+  def currentValue: E = {
+    if (!wired) {
+      warn(s"Accessing value of unwired signal ($this: $value), autowiring will be disabled")(s"Signal[]")
+      disableAutowiring()
+    }
+    value
+  }
+
   def onChanged(s: => Unit)(implicit ec: EventContext): EventObserver[E] = onChanged((_: E) => s)(ec)
 
-  def onChanged(s: Events.Subscriber[E])(implicit ec: EventContext) = _changed(s)(ec)
+  def onChanged(s: Events.Subscriber[E])(implicit ec: EventContext): EventObserver[E] = {
+    if (!wired) wire()
+    _changed(s)(ec)
+  }
 
   override def subscribe(subscriber: EventObserver[E]): Unit = {
+    if (!wired) wire()
     super.subscribe(subscriber)
     if (executionContext.isEmpty) subscriber.apply(value)
     else Future { subscriber.apply(value) } (executionContext.get)
+  }
+
+  override def unsubscribe(subscriber: EventObserver[E]): Unit = {
+    super.unsubscribe(subscriber)
+
+    if (autoWiring && !hasSubscribers && !_changed.hasSubscribers && wired) {
+      unwire()
+    }
   }
 
   def foreach(op: E => Unit)(implicit context: EventContext): Unit = apply(op)(context)
@@ -62,40 +84,8 @@ class Signal[E](@volatile protected[events] var value: E) extends Publisher[E] {
     }
   }
 
-  def zip[V](s: Signal[V]): SignalWrapper[(E, V)] = new ZipSignal[E, V](this, s)
-
-  def map[V](f: E => V): SignalWrapper[V] = new MapSignal[E, V](this, f)
-  def filter(f: E => Boolean): SignalWrapper[Option[E]] = map(v => Some(v).filter(f))
-  def flatMap[V](f: E => Signal[V]): SignalWrapper[V] = new FlatMapSignal[E, V](this, f)
-  def scan[V](zero: V)(f: (V, E) => V): SignalWrapper[V] = new ScanSignal[E, V](this, zero, f)
-
-  def combine[V, T](s: Signal[V])(f: (E, V) => T): SignalWrapper[T] = new ProxySignal[T](this, s)(f(this.value, s.value))
-
-  def throttle(delay: FiniteDuration): Signal[E] = new ThrottlingSignal(this, delay)
-}
-
-class ConstantSignal[E](v: E) extends Signal[E](v)
-
-abstract class SignalWrapper[E](v: E) extends Signal[E](v) {
-  private val lock = new Object
-  @volatile protected[events] var wired = false
-  @volatile protected[events] var autoWiring = true
-
-  protected def onWire(): Unit
-  protected def onUnwire(): Unit
-
-  override def currentValue: E = {
-    if (!wired) {
-      warn(s"Accessing value of unwired signal ($this: $value), autowiring will be disabled")(s"SignalWrapper[]")
-      disableAutowiring()
-    }
-    value
-  }
-
-  override def onChanged(s: Events.Subscriber[E])(implicit ec: EventContext): EventObserver[E] = {
-    if (!wired) wire()
-    super.onChanged(s)(ec)
-  }
+  protected def onWire(): Unit = ()
+  protected def onUnwire(): Unit = ()
 
   protected def wire(): Unit = lock.synchronized {
     if (!wired) {
@@ -130,31 +120,31 @@ abstract class SignalWrapper[E](v: E) extends Signal[E](v) {
     }
   }
 
-  override def subscribe(subscriber: EventObserver[E]): Unit = {
-    if (!wired) wire()
-    super.subscribe(subscriber)
-  }
+  def zip[V](s: Signal[V]): Signal[(E, V)] = new ZipSignal[E, V](this, s)
 
-  override def unsubscribe(subscriber: EventObserver[E]): Unit = {
-    super.unsubscribe(subscriber)
+  def map[V](f: E => V): Signal[V] = new MapSignal[E, V](this, f)
+  def filter(f: E => Boolean): Signal[Option[E]] = map(v => Some(v).filter(f))
+  def flatMap[V](f: E => Signal[V]): Signal[V] = new FlatMapSignal[E, V](this, f)
+  def scan[V](zero: V)(f: (V, E) => V): Signal[V] = new ScanSignal[E, V](this, zero, f)
 
-    if (autoWiring && !hasSubscribers && !_changed.hasSubscribers && wired) {
-      unwire()
-    }
-  }
+  def combine[V, T](s: Signal[V])(f: (E, V) => T): Signal[T] = new ProxySignal[T](this, s)(f(value, s.value))
+
+  def throttle(delay: FiniteDuration): Signal[E] = new ThrottlingSignal(this, delay)
 }
 
-class ThrottlingSignal[E](source: Signal[E], delay: FiniteDuration) extends SignalWrapper[E](source.value) {
+class ConstantSignal[E](v: E) extends Signal[E](v)
+
+class ThrottlingSignal[E](source: Signal[E], delay: FiniteDuration) extends Signal[E](source.value) {
   import scala.concurrent.duration._
   override protected val cachingDisabled: Boolean = true
   @volatile private var lastDispatched = 0L
 
-  def onWire(): Unit = {
+  override def onWire(): Unit = {
     source += this
     value = source.value
   }
 
-  def onUnwire(): Unit = {
+  override def onUnwire(): Unit = {
     source -= this
   }
 
@@ -172,7 +162,7 @@ class ThrottlingSignal[E](source: Signal[E], delay: FiniteDuration) extends Sign
   }
 }
 
-class FlatMapSignal[E, V](source: Signal[E], f: E => Signal[V]) extends SignalWrapper[V](null.asInstanceOf[V]) {
+class FlatMapSignal[E, V](source: Signal[E], f: E => Signal[V]) extends Signal[V](null.asInstanceOf[V]) {
   @volatile private var mapped = f(source.value) // TODO: what about threading, shouldn't f be executed on specific execution context
   value = mapped.value
 
@@ -182,7 +172,7 @@ class FlatMapSignal[E, V](source: Signal[E], f: E => Signal[V]) extends SignalWr
     override def unsubscribeAll(): Unit = FlatMapSignal.this.unsubscribeAll()
   }
 
-  def onWire(): Unit = {
+  override def onWire(): Unit = {
     source += sourceDelegate
     mapped += this
 
@@ -190,7 +180,7 @@ class FlatMapSignal[E, V](source: Signal[E], f: E => Signal[V]) extends SignalWr
     setupMapped(f(source.value), None)
   }
 
-  def onUnwire(): Unit = {
+  override def onUnwire(): Unit = {
     source -= sourceDelegate
     mapped -= this
   }
@@ -206,22 +196,22 @@ class FlatMapSignal[E, V](source: Signal[E], f: E => Signal[V]) extends SignalWr
   }
 }
 
-class ScanSignal[E, V](source: Signal[E], zero: V, f: (V, E) => V) extends SignalWrapper[V](zero) {
+class ScanSignal[E, V](source: Signal[E], zero: V, f: (V, E) => V) extends Signal[V](zero) {
   private val delegate = new Publisher[E] {
     protected[events] override def dispatch(event: E, sourceContext: Option[ExecutionContext]): Unit = ScanSignal.this.dispatch(f(value, event), sourceContext)
     override def hasSubscribers: Boolean = ScanSignal.this.hasSubscribers
     override def unsubscribeAll(): Unit = ScanSignal.this.unsubscribeAll()
   }
 
-  def onWire(): Unit = {
+  override def onWire(): Unit = {
     source += delegate
     if (source.value != null) value = f(zero, source.value)
   }
 
-  def onUnwire(): Unit = source -= delegate
+  override def onUnwire(): Unit = source -= delegate
 }
 
-class ProxySignal[E](sources: Signal[_]*)(f: => E) extends SignalWrapper[E](f) {
+class ProxySignal[E](sources: Signal[_]*)(f: => E) extends Signal[E](f) {
 
   private val delegate = new Publisher[Any] {
     protected[events] override def dispatch(event: Any, sourceContext: Option[ExecutionContext]): Unit = ProxySignal.this.dispatch(f, sourceContext)
@@ -229,12 +219,12 @@ class ProxySignal[E](sources: Signal[_]*)(f: => E) extends SignalWrapper[E](f) {
     override def unsubscribeAll(): Unit = ProxySignal.this.unsubscribeAll()
   }
 
-  def onWire(): Unit = {
+  override def onWire(): Unit = {
     sources foreach (_ += delegate)
     value = f
   }
 
-  def onUnwire(): Unit = {
+  override def onUnwire(): Unit = {
     sources foreach (_ -= delegate)
   }
 }
