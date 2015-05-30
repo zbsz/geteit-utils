@@ -8,6 +8,7 @@ import com.google.gson.stream.JsonReader
 
 import scala.concurrent.duration._
 import scala.language.experimental.macros
+import scala.reflect.ClassTag
 import scala.reflect.macros.whitebox
 
 trait JsonDecoder[T] {
@@ -33,6 +34,30 @@ object JsonDecoder {
   implicit val DateDecoder: JsonDecoder[Date] = apply(reader => new Date(reader.nextLong()))
   implicit val UriDecoder: JsonDecoder[Uri] = apply(reader => Uri.parse(reader.nextString()))
   implicit val FiniteDurationDecoder: JsonDecoder[FiniteDuration] = apply(_.nextLong().nanos)
+
+  implicit def mapDecoder[T: JsonDecoder]: JsonDecoder[Map[String, T]] = new JsonDecoder[Map[String, T]] {
+    override def apply(reader: JsonReader): Map[String, T] = {
+      val dec = implicitly[JsonDecoder[T]]
+      val res = Map.newBuilder[String, T]
+      reader.beginObject()
+      while (reader.hasNext) {
+        res += reader.nextName() -> dec(reader)
+      }
+      reader.endObject()
+      res.result()
+    }
+  }
+
+  implicit def arrayDecoder[T: JsonDecoder: ClassTag]: JsonDecoder[Array[T]] = new JsonDecoder[Array[T]] {
+    override def apply(reader: JsonReader): Array[T] = {
+      val dec = implicitly[JsonDecoder[T]]
+      val res = Array.newBuilder[T]
+      reader.beginArray()
+      while (reader.hasNext) res += dec(reader)
+      reader.endArray()
+      res.result()
+    }
+  }
 
   def impl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[JsonDecoder[T]] = {
     import c.universe._

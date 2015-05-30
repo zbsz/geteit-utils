@@ -19,8 +19,8 @@ object Json {
       if (fields.length != 1) c.abort(c.enclosingPosition, s"Cannot create json value codecs for case class with ${fields.length} fields")
       import c.universe._
       Seq (
-        q"implicit val jsonEncoder = com.geteit.json.JsonEncoder.valueEncoder[$className]",
-        q"implicit val jsonDecoder = com.geteit.json.JsonDecoder.valueDecoder[$className]"
+        q"implicit val jsonEncoder: com.geteit.json.JsonEncoder[$className] = com.geteit.json.JsonEncoder.valueEncoder[$className]",
+        q"implicit val jsonDecoder: com.geteit.json.JsonDecoder[$className] = com.geteit.json.JsonDecoder.valueDecoder[$className]"
       )
     }
   }
@@ -78,8 +78,8 @@ trait JsonMacro {
   protected def jsonCodecs(c: whitebox.Context)(className: c.universe.TypeName, fields: List[c.universe.ValDef]): Seq[c.Tree] = {
     import c.universe._
     Seq (
-      q"implicit val jsonEncoder = com.geteit.json.JsonEncoder[$className]",
-      q"implicit val jsonDecoder = com.geteit.json.JsonDecoder[$className]"
+      q"implicit val jsonEncoder: com.geteit.json.JsonEncoder[$className] = com.geteit.json.JsonEncoder[$className]",
+      q"implicit val jsonDecoder: com.geteit.json.JsonDecoder[$className] = com.geteit.json.JsonDecoder[$className]"
     )
   }
 }
