@@ -6,7 +6,10 @@ import android.net.Uri
 import android.support.v4.app.FragmentActivity
 import android.view.View
 import android.view.View.OnClickListener
+import com.geteit.concurrent.Threading
+import com.geteit.util.Log._
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
 
 package object util {
@@ -78,6 +81,40 @@ package object util {
   implicit def lazy_to_runnable(f: => Unit): Runnable with Object {def run(): Unit} = new Runnable() {
     override def run() {
       f
+    }
+  }
+
+  implicit class RichFuture[A](base: Future[A]) {
+    def zip[B](f: Future[B])(implicit executor: ExecutionContext) = RichFuture.zip(base, f)
+    def recoverWithLog(reportHockey: Boolean = false)(implicit tag: LogTag) = RichFuture.recoverWithLog(base, reportHockey)
+  }
+
+  object RichFuture {
+
+    def zip[A, B](f1: Future[A], f2: Future[B])(implicit executor: ExecutionContext): Future[(A, B)] =
+      for(r1 <- f1; r2 <- f2) yield (r1, r2)
+
+
+    def traverseSequential[A, B](in: Seq[A])(f: A => Future[B])(implicit executor: ExecutionContext): Future[Seq[B]] = {
+      def processNext(remaining: Seq[A], acc: List[B] = Nil): Future[Seq[B]] =
+        if (remaining.isEmpty) Future.successful(acc.reverse)
+        else f(remaining.head) flatMap { res => processNext(remaining.tail, res :: acc) }
+
+      processNext(in)
+    }
+
+    def recoverWithLog[A](f: Future[A], uploadReport: Boolean = false)(implicit tag: LogTag) = f.recover(LoggedTry.errorHandler(uploadReport))(Threading.global)
+
+    /**
+     * Process sequentially and ignore results.
+     * Similar to traverseSequential, but doesn't care about the result, and continues on failure.
+     */
+    def processSequential[A, B](in: Seq[A])(f: A => Future[B])(implicit executor: ExecutionContext, tag: LogTag): Future[Unit] = {
+      def processNext(remaining: Seq[A]): Future[Unit] =
+        if (remaining.isEmpty) Future.successful(())
+        else LoggedTry(recoverWithLog(f(remaining.head), uploadReport = true)).getOrElse(Future.successful(())) flatMap { _ => processNext(remaining.tail) }
+
+      processNext(in)
     }
   }
 }
