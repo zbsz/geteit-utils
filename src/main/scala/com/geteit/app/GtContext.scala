@@ -75,7 +75,7 @@ object GtContext {
     if (vc != null) {
       try {
         viewConfigContextField foreach (_.get(vc) match {
-          case c: GtContext if c.ctxDestroyed.currentValue => configs.remove(density)
+          case c: GtContext if c.ctxDestroyed.currentValue.contains(true) => configs.remove(density)
           case _ => //ignore
         })
       } catch {
@@ -97,8 +97,9 @@ trait GtContext extends Context {
   implicit val ctx = this
   implicit val eventContext = new EventContext {}
 
-  val ctxCreate = new Signal[Boolean](false)
-  val ctxDestroyed = new Signal[Boolean](false) with ForcedEventSource[Boolean]
+  val ctxCreate = new Signal[Boolean]
+  val ctxDestroyed = new Signal[Boolean] with ForcedEventSource[Boolean]
+  ctxDestroyed ! false
 
   val ctxPause = new Publisher[Null] with ForcedEventSource[Null]
   val ctxResume = new Publisher[Null] with ForcedEventSource[Null]

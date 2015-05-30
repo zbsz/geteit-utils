@@ -1,5 +1,7 @@
 package com.geteit.events
 
+import com.geteit.util.LoggedTry
+
 import scala.concurrent.{ExecutionContext, Future}
 
 trait EventPublisher[-E] {
@@ -46,8 +48,8 @@ class Publisher[E] extends EventSource[E] with EventPublisher[E] {
   def hasSubscribers: Boolean = subscribersLock.synchronized(subscribers).nonEmpty || childrenLock.synchronized(children).exists(_.hasSubscribers)
 
   protected[events] def dispatchEvent(event: E, currentExecutionContext: Option[ExecutionContext]): Unit = {
-    childrenLock.synchronized(children) foreach { _.dispatch(event, currentExecutionContext) }
-    subscribersLock.synchronized(subscribers) foreach { _.apply(event) }
+    childrenLock.synchronized(children) foreach { c => try { c.dispatch(event, currentExecutionContext) } catch { case e: Throwable => e.printStackTrace() } }
+    subscribersLock.synchronized(subscribers) foreach { s => try s.apply(event) catch { case e: Throwable => e.printStackTrace() } }
   }
 
   protected[events] def dispatch(event: E, sourceContext: Option[ExecutionContext]): Unit = executionContext match {
