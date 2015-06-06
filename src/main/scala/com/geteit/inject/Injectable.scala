@@ -6,9 +6,32 @@ import com.geteit.app.{GtApplication, GtContext}
 import com.geteit.events.EventContext
 import com.geteit.util.AtomicUpdateMap
 import com.geteit.util.GtAssert
+import com.geteit.util.returning
+
+trait Module {
+  def apply[T: Manifest]: Option[Factory[T]]
+}
+
+object Module {
+  class Builder {
+    private var factories = Map.empty[Manifest[_], Factory[_]]
+
+    def +=[T: Manifest](f: Factory[T]) = {
+      factories += implicitly[Manifest[T]] -> f
+      this
+    }
+
+    def result = new Module {
+      override def apply[T: Manifest]: Option[Factory[T]] = factories.get(implicitly[Manifest[T]]).map(_.asInstanceOf[Factory[T]])
+    }
+  }
+
+  def apply(f: Builder => Unit) = returning(new Builder)(f).result
+}
 
 
 object Injectable {
+  private var modules = List.empty[Module]
   private val instances = new AtomicUpdateMap[Context, AtomicUpdateMap[Manifest[_], Any]]
 
   private def instance[T: Manifest](ctx: GtContext, f: => T): T = {
@@ -16,6 +39,8 @@ object Injectable {
 
     instances.getOrElseUpdate(ctx, new AtomicUpdateMap[Manifest[_], Any]).getOrElseUpdate(manifest, f).asInstanceOf[T]
   }
+
+  def registerModule(m: Module) = modules ::= m
 
   import GtContext.globals._
   GtContext.onContextDestroyed { instances.remove(_) }
@@ -36,17 +61,16 @@ class Factory[T](f: GtContext => T) {
 trait Injectable {
   import Injectable._
 
-  def inject[T](implicit ctx: GtContext, m: Manifest[T], factory: Factory[T]): T = inject[T](factory(ctx))(ctx, m)
-
-  def inject[T](factory: => T)(implicit ctx: GtContext, m: Manifest[T]): T = {
-    if (classOf[GtSingleton].isAssignableFrom(m.runtimeClass)) singleton[T](factory)
-    else if (classOf[GtContextSingleton].isAssignableFrom(m.runtimeClass)) contextSingleton(factory)
-    else factory
+  def inject[T](implicit ctx: GtContext, m: Manifest[T], factory: Factory[T]): T = {
+    def f = modules.view.map(_.apply[T]).collect { case Some(f) => f }.headOption.getOrElse(factory)
+    inject[T](f(ctx))(ctx, m)
   }
 
-  def contextSingleton[T](factory: => T)(implicit ctx: GtContext, m: Manifest[T]) = instance[T](ctx, factory)
-
-  def singleton[T: Manifest](factory: => T) = instance[T](GtContext.Global, factory)
+  def inject[T](factory: => T)(implicit ctx: GtContext, m: Manifest[T]): T = {
+    if (classOf[GtSingleton].isAssignableFrom(m.runtimeClass)) instance[T](GtContext.Global, factory)
+    else if (classOf[GtContextSingleton].isAssignableFrom(m.runtimeClass)) instance[T](ctx, factory)
+    else factory
+  }
 }
 
 trait GtSingleton {
