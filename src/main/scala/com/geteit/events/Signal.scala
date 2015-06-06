@@ -82,8 +82,6 @@ class Signal[E]() extends Publisher[E] {
     }
   }
 
-  def foreach(op: E => Unit)(implicit context: EventContext): Unit = apply(op)(context)
-
   override def dispatch(event: E, sourceContext: Option[ExecutionContext]): Unit = {
     if (cachingDisabled || this.value != Some(event)) {
       this.value = Some(event)
