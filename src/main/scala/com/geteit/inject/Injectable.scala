@@ -1,6 +1,6 @@
 package com.geteit.inject
 
-import android.app.Activity
+import android.app.{ActivityManager, Activity}
 import android.content.{ContentResolver, Context}
 import com.geteit.app.{GtApplication, GtContext}
 import com.geteit.events.EventContext
@@ -44,14 +44,16 @@ object Injectable {
 
   import GtContext.globals._
   GtContext.onContextDestroyed { instances.remove(_) }
+}
+
+object Factory {
+
+  def apply[T](f: => T) = new Factory(_ => f)
 
   implicit val appFactory = Factory[android.app.Application](GtApplication.APP_INSTANCE)
   implicit val activityFactory = new Factory[Activity](_.asInstanceOf[Activity])
   implicit val contentResolverFactory = new Factory[ContentResolver](_.getContentResolver)
-}
-
-object Factory {
-  def apply[T](f: => T) = new Factory(_ => f)
+  implicit val activityManagerFactory = new Factory[ActivityManager](_.getSystemService(Context.ACTIVITY_SERVICE).asInstanceOf[ActivityManager])
 }
 
 class Factory[T](f: GtContext => T) {

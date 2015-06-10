@@ -12,9 +12,7 @@ lazy val root = Project("geteit-utils", file("."))
       "com.android.support" % "support-v4" % "22.0.0",
       "org.scalatest" %% "scalatest" % "2.2.1" % Test,
       "org.scalacheck" %% "scalacheck" % "1.11.6" % Test,
-      "org.robolectric" % "android-all" % "5.0.0_r2-robolectric-0" % Provided,
-      "com.geteit" %% "robotest" % "0.7" % Test,
-      "junit" % "junit" % "4.8.2" % Test
+      "com.geteit" %% "robotest" % "0.8" % Test
     )
   )
   .aggregate(macros)
