@@ -2,17 +2,18 @@ package com.geteit.app
 
 import android.app.{Activity, Service}
 import android.content.res.Configuration
-import android.content.{ContextWrapper, Context, Intent}
+import android.content.{Context, ContextWrapper, Intent}
 import android.os.Bundle
 import android.preference.PreferenceManager
-import android.support.v4.app.{FragmentActivity, Fragment}
+import android.support.v4.app.{Fragment, FragmentActivity}
 import android.util.SparseArray
 import android.view.View.OnClickListener
-import android.view.{ViewStub, View, ViewConfiguration}
+import android.view.{View, ViewConfiguration, ViewStub}
 import com.geteit.events._
-import com.geteit.inject.Injectable
+import com.geteit.inject._
 import com.geteit.util.Log._
-import language.implicitConversions
+
+import scala.language.implicitConversions
 
 object GtContext {
   private implicit val tag: LogTag = "GtContext"
@@ -92,7 +93,7 @@ object GtContext {
   }(EventContext.Global)
 }
 
-trait GtContext extends Context {
+trait GtContext extends Context with Injector {
 
   implicit val ctx = this
   implicit val eventContext = new EventContext {}
@@ -106,6 +107,17 @@ trait GtContext extends Context {
   val ctxConfigChanged = new Publisher[Configuration] with ForcedEventSource[Configuration]
   val ctxOnActivityResult = new Publisher[(Int, Int, Intent)] with ForcedEventSource[(Int, Int, Intent)]
 
+  lazy val module: Module = {
+    verbose(s"context: $this, create module")("GtContext")
+    this match {
+      case app: GtApplication => GtModule
+      case c =>
+        verbose(s"other")("GtContext")
+        GtApplication.APP_INSTANCE.contextModule(c) :: ImmutableWrapper(getApplicationContext.asInstanceOf[GtApplication].module)
+    }
+  }
+
+  override def binding[T: Manifest] = module.binding[T]
 
   protected def publishCreate() {
     ctxCreate ! true
@@ -205,6 +217,10 @@ trait ViewHelper extends View with ViewFinder with Injectable with ViewEventCont
   def findById[V <: View](id: Int) = findViewById(id).asInstanceOf[V]
   def visible = getVisibility == View.VISIBLE
   def onClick(f: => Any) { setOnClickListener(new OnClickListener { def onClick(v: View) { f }}) }
+}
+
+trait ServiceHelper extends Service with Injectable with GtServiceContext {
+
 }
 
 trait FragmentHelper extends Fragment with ViewFinder with Injectable with FragmentEventContext {

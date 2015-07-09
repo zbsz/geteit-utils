@@ -54,6 +54,8 @@ lazy val buildSettings = Seq(
   fork in Test := true,
   publishArtifact in Test := false,
   javaOptions in Test ++= Seq("-XX:MaxPermSize=2048M", "-XX:+CMSClassUnloadingEnabled"),
+  javacOptions ++= Seq("-source", "1.7", "-target", "1.7"),
+  scalacOptions ++= Seq("-feature", "-language:implicitConversions", "-language:postfixOps", "-target:jvm-1.7"),
 
   /** We need the Macro Paradise plugin both to support the macro
     * annotations used in the public type provider implementation and to
