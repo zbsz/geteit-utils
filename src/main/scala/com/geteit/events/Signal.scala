@@ -24,6 +24,7 @@ object Signal {
   def or(sources: Signal[Boolean]*): Signal[Boolean] = new FoldLeftSignal[Boolean, Boolean](sources: _*)(true)(_ || _)
 
   def const[E](value: E): Signal[E] = new ConstantSignal[E](value)
+  def empty[E]: Signal[E] = new Signal[E]
 
   def future[E](future: Future[E]): Signal[E] = returning(new Signal[E]()) { signal =>
     future.onSuccess { case res => signal.dispatch(res, Some(Threading.global)) } (Threading.global)
@@ -129,7 +130,8 @@ class Signal[E]() extends Publisher[E] {
   def zip[V](s: Signal[V]): Signal[(E, V)] = new ZipSignal[E, V](this, s)
 
   def map[V](f: E => V): Signal[V] = new MapSignal[E, V](this, f)
-  def filter(f: E => Boolean): Signal[Option[E]] = map(v => Some(v).filter(f))
+  def mapValue[V](f: Option[E] => Option[V]): Signal[V] = new ProxySignal[V](this)(f(this.value))
+  def filter(f: E => Boolean): Signal[E] = new ProxySignal[E](this)(this.value filter f)
   def flatMap[V](f: E => Signal[V]): Signal[V] = new FlatMapSignal[E, V](this, f)
 
   def combine[V, T](s: Signal[V])(f: (E, V) => T): Signal[T] = new ProxySignal[T](this, s)(for (v <- value; v1 <- s.value) yield f(v, v1))
