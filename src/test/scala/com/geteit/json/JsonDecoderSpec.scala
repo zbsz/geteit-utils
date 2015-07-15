@@ -97,4 +97,23 @@ class JsonDecoderSpec extends FeatureSpec with Matchers with RobolectricSuite {
     implicitly[JsonDecoder[EntityCollection]].apply(reader("""{ "arr": [1, 3, 4], "containers": [], "obj": { "k": "v" }, "entities": [{ "int": 1, "opt": "test" }] }""")) shouldEqual EntityCollection(Nil, Array(Entity(1, 0f, "", Some("test"))))
   }
 
+  scenario("Decode array") {
+    JsonDecoder[Array[Value]].apply("""[1, 2, 3]""").toSeq shouldEqual Array(Value("1"), Value("2"), Value("3")).toSeq
+    JsonDecoder[Array[Value]].apply("""[1, 2, 3]""").toSeq shouldEqual Array(Value("1"), Value("2"), Value("3")).toSeq
+    JsonDecoder[Array[Int]].apply("""[1, 2, 3]""") shouldEqual Array(1, 2, 3)
+  }
+
+  scenario("Decode set") {
+    JsonDecoder[Set[Int]].apply("""[1, 2, 3]""") shouldEqual Set(1, 2, 3)
+  }
+
+  scenario("Decode seq") {
+    JsonDecoder[Seq[Int]].apply("""[1, 2, 3]""") shouldEqual Seq(1, 2, 3)
+  }
+
+  scenario("Decode map") {
+    JsonDecoder[Map[String, Value]].apply("""{"1": "1", "2": "2"}""") shouldEqual Map("1" -> Value("1"), "2" -> Value("2"))
+    JsonDecoder[Map[String, Int]].apply("""{"1": 1, "2": 2}""") shouldEqual Map("1" -> 1, "2" -> 2)
+  }
+
 }

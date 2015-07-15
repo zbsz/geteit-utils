@@ -109,12 +109,7 @@ trait GtContext extends Context with Injector {
 
   lazy val module: Module = {
     verbose(s"context: $this, create module")("GtContext")
-    this match {
-      case app: GtApplication => GtModule
-      case c =>
-        verbose(s"other")("GtContext")
-        GtApplication.APP_INSTANCE.contextModule(c) :: ImmutableWrapper(getApplicationContext.asInstanceOf[GtApplication].module)
-    }
+    GtApplication.APP_INSTANCE.contextModule(this) :: ImmutableWrapper(getApplicationContext.asInstanceOf[GtApplication].module)
   }
 
   override def binding[T: Manifest] = module.binding[T]
