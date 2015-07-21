@@ -22,39 +22,37 @@ class Publisher[E] extends EventSource[E] with EventPublisher[E] {
   private object subscribersLock
   private object childrenLock
 
-  private var subscribers: Vector[EventObserver[E]] = Vector.empty
-  private var children: Vector[Publisher[_ >: E]] = Vector.empty
+  @volatile private var subscribers: Set[EventObserver[E]] = Set.empty
+  @volatile private var children: Set[Publisher[_ >: E]] = Set.empty
 
   /** Add a subscriber to our list if it is not already there. */
-  protected[events] def subscribe(subscriber: EventObserver[E]): Unit = subscribersLock.synchronized {
-    if (!subscribers.contains(subscriber)) subscribers +:= subscriber
-  }
+  protected[events] def subscribe(subscriber: EventObserver[E]): Unit = subscribersLock.synchronized(subscribers += subscriber)
 
   /** Remove a subscriber from our list.  If not in the list, ignored. */
-  protected[events] def unsubscribe(subscriber: EventObserver[E]): Unit = subscribersLock.synchronized { subscribers = Events.removeObserver(subscribers, subscriber) }
+  protected[events] def unsubscribe(subscriber: EventObserver[E]): Unit = subscribersLock.synchronized(subscribers -= subscriber)
 
-  private[events] def +=(child: Publisher[_ >: E]): Unit = childrenLock.synchronized { if (!children.contains(child)) children +:= child }
-  private[events] def -=(child: Publisher[_ >: E]): Unit = childrenLock.synchronized { children = Events.removeObserver(children, child) }
+  private[events] def +=(child: Publisher[_ >: E]): Unit = childrenLock.synchronized(children += child)
+  private[events] def -=(child: Publisher[_ >: E]): Unit = childrenLock.synchronized(children -= child)
 
   def unsubscribeAll(): Unit = {
     subscribersLock.synchronized {
-      val s = subscribers
-      subscribers = Vector.empty
-      s
-    } foreach { _.destroy() }
-    childrenLock.synchronized(children) foreach { _.unsubscribeAll() }
+      val previous = subscribers
+      subscribers = Set.empty
+      previous
+    } foreach (_.destroy())
+    children.foreach(_.unsubscribeAll())
   }
 
-  def hasSubscribers: Boolean = subscribersLock.synchronized(subscribers).nonEmpty || childrenLock.synchronized(children).exists(_.hasSubscribers)
+  def hasSubscribers: Boolean = subscribers.nonEmpty || children.exists(_.hasSubscribers)
 
   protected[events] def dispatchEvent(event: E, currentExecutionContext: Option[ExecutionContext]): Unit = {
-    childrenLock.synchronized(children) foreach { c => try { c.dispatch(event, currentExecutionContext) } catch { case e: Throwable => e.printStackTrace() } }
-    subscribersLock.synchronized(subscribers) foreach { s => try s.apply(event) catch { case e: Throwable => e.printStackTrace() } }
+    children.foreach(_.dispatch(event, currentExecutionContext))
+    subscribers.foreach(_.apply(event))
   }
 
   protected[events] def dispatch(event: E, sourceContext: Option[ExecutionContext]): Unit = executionContext match {
     case None | `sourceContext` => dispatchEvent(event, sourceContext)
-    case Some(ctx) => Future { dispatchEvent(event, executionContext) } (ctx)
+    case Some(ctx) => Future(dispatchEvent(event, executionContext))(ctx)
   }
 
   def contramap[T](f: T => E): Publisher[T] = new Publisher[T] {
