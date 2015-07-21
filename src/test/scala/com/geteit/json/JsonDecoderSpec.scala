@@ -115,5 +115,4 @@ class JsonDecoderSpec extends FeatureSpec with Matchers with RobolectricSuite {
     JsonDecoder[Map[String, Value]].apply("""{"1": "1", "2": "2"}""") shouldEqual Map("1" -> Value("1"), "2" -> Value("2"))
     JsonDecoder[Map[String, Int]].apply("""{"1": 1, "2": 2}""") shouldEqual Map("1" -> 1, "2" -> 2)
   }
-
 }

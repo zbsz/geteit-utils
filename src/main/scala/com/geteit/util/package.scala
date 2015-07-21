@@ -60,13 +60,7 @@ package object util {
 
   implicit def boolean_to_visibility(visible: Boolean): Int = visibility(visible)
 
-  implicit def lazy2ViewOnClickListener(f: => Any): OnClickListener with Object {def onClick(view: View): Unit} = new View.OnClickListener() {
-    def onClick(view: View) {
-      f
-    }
-  }
-
-  implicit def func_to_ViewOnClickListener(f: View => Unit): OnClickListener with Object {def onClick(view: View): Unit} = new View.OnClickListener() {
+  implicit def func_to_ViewOnClickListener[A](f: View => A): OnClickListener = new View.OnClickListener() {
     def onClick(view: View) {
       f(view)
     }

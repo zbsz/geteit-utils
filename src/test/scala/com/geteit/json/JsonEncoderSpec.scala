@@ -82,4 +82,8 @@ class JsonEncoderSpec extends FeatureSpec with Matchers with RobolectricSuite {
   scenario("Encode collection") {
     encode(EntityCollection(Nil, Array(Entity(1, 0f, "", Some("test"))))) shouldEqual """{"entities":[{"int":1,"opt":"test"}]}"""
   }
+
+  scenario("Encode map") {
+    encode(Map[String, Value]("key" -> Value("value"))) shouldEqual """{"key":"value"}"""
+  }
 }

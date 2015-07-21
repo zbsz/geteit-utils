@@ -31,6 +31,14 @@ object JsonDecoder {
 
   def decode[T: JsonDecoder](json: String) = implicitly[JsonDecoder[T]].apply(json)
 
+  implicit val IntDecoder: JsonDecoder[Int] = apply(reader => reader.nextInt())
+  implicit val LongDecoder: JsonDecoder[Long] = apply(reader => reader.nextLong())
+  implicit val ShortDecoder: JsonDecoder[Short] = apply(reader => reader.nextInt().toShort)
+  implicit val ByteDecoder: JsonDecoder[Byte] = apply(reader => reader.nextInt().toByte)
+  implicit val DoubleDecoder: JsonDecoder[Double] = apply(reader => reader.nextDouble())
+  implicit val FloatDecoder: JsonDecoder[Float] = apply(reader => reader.nextDouble().toFloat)
+  implicit val BooleanDecoder: JsonDecoder[Boolean] = apply(reader => reader.nextBoolean())
+  implicit val StringDecoder: JsonDecoder[String] = apply(reader => reader.nextString())
   implicit val FileDecoder: JsonDecoder[File] = apply(reader => new File(reader.nextString()))
   implicit val DateDecoder: JsonDecoder[Date] = apply(reader => new Date(reader.nextLong()))
   implicit val UriDecoder: JsonDecoder[Uri] = apply(reader => Uri.parse(reader.nextString()))
@@ -74,20 +82,11 @@ object JsonDecoder {
 
     def readValue(tpe: Type, reader: TermName, fallbackImplicit: Boolean = true): Tree = {
       tpe.typeSymbol.name.toString match {
-        case "Long" => q"$reader.nextLong"
-        case "Int" => q"$reader.nextInt"
-        case "Short" => q"$reader.nextInt.toShort"
-        case "Byte" => q"$reader.nextInt.toByte"
-        case "Double" => q"$reader.nextDouble"
-        case "Float" => q"$reader.nextDouble.toFloat"
-        case "Boolean" => q"$reader.nextBoolean"
-        case "String" => q"$reader.nextString"
-        case "Option" =>
-          val value = readValue(tpe.typeArgs.head, reader)
-          q"if ($reader.peek() == JsonToken.NULL) { $reader.skipValue(); None } else Option($value)"
+        case "Option" => q"if ($reader.peek() == JsonToken.NULL) { $reader.skipValue(); None } else Option(${readValue(tpe.typeArgs.head, reader)})"
         case "Seq" | "Array" | "List" | "Set" => readArray(tpe, reader)
         case "Map" => readMap(tpe, reader)
-        case _ => if (fallbackImplicit) implicitDecoder(tpe, reader) else readCaseClass(tpe, reader)
+        case _ if !fallbackImplicit && tpe.typeSymbol.isClass && tpe.typeSymbol.asClass.isCaseClass => readCaseClass(tpe, reader)
+        case _ => implicitDecoder(tpe, reader)
       }
     }
 

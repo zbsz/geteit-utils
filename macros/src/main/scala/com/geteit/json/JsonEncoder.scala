@@ -39,6 +39,16 @@ object JsonEncoder {
   implicit val UriEncoder: JsonEncoder[Uri] = apply((w, u) => w.value(u.toString))
   implicit val FiniteDurationEncoder: JsonEncoder[FiniteDuration] = apply((w, d) => w.value(d.toNanos))
 
+  implicit def MapEncoder[T: JsonEncoder]: JsonEncoder[Map[String, T]] = new JsonEncoder[Map[String, T]] {
+    override def apply(v: Map[String, T], writer: JsonWriter): Unit = {
+      writer.beginObject()
+      v foreach { case (k, value) =>
+        writer.name(k)
+        implicitly[JsonEncoder[T]].apply(value, writer)
+      }
+      writer.endObject()
+    }
+  }
 
   def impl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[JsonEncoder[T]] = {
     import c.universe._
