@@ -51,7 +51,7 @@ object PreferenceSignal {
   }})
 }
 
-class PreferenceSignal[T](private val key: String, preferences: => SharedPreferences, private val default: T)(implicit val helper: Helper[T]) extends Signal[T] with UiEventSource {
+class PreferenceSignal[T](private val key: String, preferences: => SharedPreferences, private val default: T)(implicit val helper: Helper[T]) extends SourceSignal[T] with UiEventSource {
   import PreferenceSignal._
   private lazy val prefs = preferences
 
@@ -70,6 +70,8 @@ class PreferenceSignal[T](private val key: String, preferences: => SharedPrefere
   }
 
   private def read = helper.read(prefs, key, default)
+
+  def readPrefValue = Future { read }
 
   private def writeCurrent(editor: SharedPreferences.Editor): Unit = helper.write(editor, key, currentValue.getOrElse(default))
 

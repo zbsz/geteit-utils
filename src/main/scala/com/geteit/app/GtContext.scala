@@ -98,8 +98,8 @@ trait GtContext extends Context with Injector {
   implicit val ctx = this
   implicit val eventContext = new EventContext {}
 
-  val ctxCreate = new Signal[Boolean]
-  val ctxDestroyed = new Signal[Boolean] with ForcedEventSource[Boolean]
+  val ctxCreate = Signal[Boolean]()
+  val ctxDestroyed = new SourceSignal[Boolean] with ForcedEventSource[Boolean]
   ctxDestroyed ! false
 
   val ctxPause = new Publisher[Null] with ForcedEventSource[Null]

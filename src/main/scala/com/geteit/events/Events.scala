@@ -1,6 +1,7 @@
 package com.geteit.events
 
 import com.geteit.concurrent.Threading
+import com.geteit.util.returning
 
 import scala.concurrent.{Future, ExecutionContext}
 import scala.ref.WeakReference
@@ -8,68 +9,70 @@ import scala.ref.WeakReference
 object Events {
   type Subscriber[-E] = E => Unit
 
+  def UiExecutionContext = Threading.ui
+  def BgExecutionContext = Threading.global
+
   def removeObserver[T <: AnyRef](xs: Vector[T], x: T): Vector[T] = {
     val (pre, post) = xs.span(_ ne x)
     if (post.isEmpty) pre else pre ++ post.tail
   }
 }
 
+trait Subscription {
+  def enable(): Unit
+  def disable(): Unit
+  def destroy(): Unit
+  def disablePauseWithContext(): Unit
+
+  private[events] def subscribe(): Unit
+  private[events] def unsubscribe(): Unit
+}
+
 trait EventSource[E] {
   val executionContext = Option.empty[ExecutionContext]
 
-  protected[events] def subscribe(subscriber: EventObserver[E]): Unit
-  protected[events] def unsubscribe(subscriber: EventObserver[E]): Unit
-
-  def on(ec: ExecutionContext)(subscriber: Events.Subscriber[E])(implicit context: EventContext) = new EventObserver(this, subscriber, Some(ec))(WeakReference(context)).enable()
-  def apply(subscriber: Events.Subscriber[E])(implicit context: EventContext) = new EventObserver(this, subscriber)(WeakReference(context)).enable()
+  def on(ec: ExecutionContext)(subscriber: Events.Subscriber[E])(implicit context: EventContext): Subscription
+  def apply(subscriber: Events.Subscriber[E])(implicit context: EventContext): Subscription
 }
 
 trait ForcedEventSource[E] extends EventSource[E] {
-  override def on(ec: ExecutionContext)(subscriber: Events.Subscriber[E])(implicit context: EventContext): EventObserver[E] = super.on(ec)(subscriber)(context).disablePauseWithContext()
-  override def apply(subscriber: Events.Subscriber[E])(implicit context: EventContext): EventObserver[E] = super.apply(subscriber)(context).disablePauseWithContext()
+  abstract override def on(ec: ExecutionContext)(subscriber: Events.Subscriber[E])(implicit context: EventContext): Subscription = returning(super.on(ec)(subscriber))(_.disablePauseWithContext())
+  abstract override def apply(subscriber: Events.Subscriber[E])(implicit context: EventContext): Subscription = returning(super.apply(subscriber))(_.disablePauseWithContext())
 }
 
-class EventObserver[-E](source: EventSource[E], subscriber: Events.Subscriber[E], executionContext: Option[ExecutionContext] = None)(implicit context: WeakReference[EventContext]) extends (E => Unit) {
-  private var subscribed = false
+abstract class BaseSubscription(context: WeakReference[EventContext]) extends Subscription {
+  @volatile protected[events] var subscribed = false
   private var enabled = false
   private var pauseWithContext = true
-  private val contextSwitch = executionContext.exists(ec => source.executionContext.forall(_ != ec))
 
   context.get foreach (_.register(this))
 
-  def apply(event: E): Unit = {
-    if (subscribed) {
-      if (contextSwitch) Future { if (subscribed) subscriber(event) } (executionContext.get)
-      else subscriber(event)
-    }
-  }
+  protected[events] def onSubscribe(): Unit
+  protected[events] def onUnsubscribe(): Unit
 
   private[events] def subscribe(): Unit = {
     if (enabled && !subscribed) {
       subscribed = true
-      source.subscribe(this)
+      onSubscribe()
     }
   }
 
   private[events] def unsubscribe(): Unit = {
     if (subscribed && (pauseWithContext || !enabled)) {
       subscribed = false
-      source.unsubscribe(this)
+      onUnsubscribe()
     }
   }
 
-  def enable(): EventObserver[E] = {
+  def enable(): Unit =
     context.get foreach { context =>
       enabled = true
       if (context.isContextStarted) subscribe()
     }
-    this
-  }
 
-  def disable(): EventObserver[E] = {
+  def disable(): Unit = {
     enabled = false
     if (subscribed) unsubscribe()
-    this
   }
 
   def destroy(): Unit = {
@@ -77,17 +80,51 @@ class EventObserver[-E](source: EventSource[E], subscriber: Events.Subscriber[E]
     context.get foreach (_.unregister(this))
   }
 
-  def disablePauseWithContext(): EventObserver[E] = {
+  def disablePauseWithContext(): Unit = {
     pauseWithContext = false
     subscribe()
-    this
   }
 }
 
+class SignalSubscription[E](source: Signal[E], subscriber: Events.Subscriber[E], executionContext: Option[ExecutionContext] = None)(implicit context: WeakReference[EventContext]) extends BaseSubscription(context) with SignalListener {
+  private val contextSwitch = executionContext.exists(ec => !source.executionContext.contains(ec))
+
+  override def changed(ec: Option[ExecutionContext]): Unit = synchronized {
+    source.value foreach { event =>
+      if (subscribed) {
+        if (contextSwitch) Future { if (subscribed) subscriber(event) } (executionContext.get)
+        else subscriber(event)
+      }
+    }
+  }
+
+  override protected[events] def onSubscribe(): Unit = {
+    source.subscribe(this)
+    changed(None) // refresh listener with current value
+  }
+
+  override protected[events] def onUnsubscribe(): Unit = source.unsubscribe(this)
+}
+
+class StreamSubscription[E](source: EventStream[E], subscriber: Events.Subscriber[E], executionContext: Option[ExecutionContext] = None)(implicit context: WeakReference[EventContext]) extends BaseSubscription(context) with EventListener[E] {
+  private val contextSwitch = executionContext.exists(ec => !source.executionContext.contains(ec))
+
+  override def onEvent(event: E, ec: Option[ExecutionContext]): Unit = {
+    if (subscribed) {
+      if (contextSwitch) Future { if (subscribed) subscriber(event) } (executionContext.get)
+      else subscriber(event)
+    }
+  }
+
+  override protected[events] def onSubscribe(): Unit = source.subscribe(this)
+
+  override protected[events] def onUnsubscribe(): Unit = source.unsubscribe(this)
+}
+
 trait BgEventSource { self: EventSource[_] =>
-  override val executionContext = Some(Threading.global)
+  override val executionContext = Some(Events.BgExecutionContext)
 }
 
 trait UiEventSource { self: EventSource[_] =>
-  override val executionContext = Some(Threading.ui)
+  override val executionContext = Some(Events.UiExecutionContext)
 }

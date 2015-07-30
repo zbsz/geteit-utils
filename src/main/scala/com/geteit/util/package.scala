@@ -29,7 +29,8 @@ package object util {
   }
 
   /** returns number of pixels from given amount of display pixels **/
-  def dp(amount: Float)(implicit context: Context) = (amount * context.getResources.getDisplayMetrics.density + .5f).toInt
+  def dp(amount: Float)(implicit context: Context) = math.max(1, (amount * context.getResources.getDisplayMetrics.density + .5f).toInt)
+  def dpf(amount: Float)(implicit context: Context) = amount * context.getResources.getDisplayMetrics.density
 
   def sdp(v: Float)(implicit context: Context) = (scaledDensity * v).toInt
 

@@ -1,17 +1,21 @@
 package com.geteit.events
 
 import android.app.Service
-import android.view.View
-import scala.ref.WeakReference
-import android.content.Loader
 import android.support.v4.app.Fragment
+import android.content.Loader
+import android.view.View
+import com.geteit.util.Log._
+
+import scala.ref.WeakReference
 
 trait EventContext {
+  private implicit val logTag: LogTag = logTagFor[EventContext]
+
   private object lock
 
   private var started = false
   private var destroyed = false
-  private var observers: Vector[EventObserver[_]] = Vector.empty
+  private var observers: Vector[Subscription] = Vector.empty
   implicit val eventContext = this
 
   implicit def weakEventContext: WeakReference[EventContext] = WeakReference(this)
@@ -48,7 +52,7 @@ trait EventContext {
     }
   }
 
-  private[events] def register(observer: EventObserver[_]): Unit = {
+  private[events] def register(observer: Subscription): Unit = {
     lock.synchronized {
       assert(!destroyed, "context already destroyed")
 
@@ -59,7 +63,7 @@ trait EventContext {
     }
   }
 
-  private[events] def unregister(observer: EventObserver[_]): Unit = {
+  private[events] def unregister(observer: Subscription): Unit = {
     lock.synchronized { observers = Events.removeObserver(observers, observer) }
   }
 
@@ -72,9 +76,9 @@ object EventContext {
     implicit val global: EventContext = EventContext.Global
   }
 
-  object Global extends EventContext {
-    override private[events] def register(observer: EventObserver[_]): Unit = () // do nothing, global context will never need the observers (can not be stopped)
-    override private[events] def unregister(observer: EventObserver[_]): Unit = ()
+  val Global: EventContext = new EventContext {
+    override private[events] def register(observer: Subscription): Unit = () // do nothing, global context will never need the observers (can not be stopped)
+    override private[events] def unregister(observer: Subscription): Unit = ()
     override def onContextStart(): Unit = ()
     override def onContextStop(): Unit = ()
     override def onContextDestroy(): Unit = ()
@@ -160,12 +164,12 @@ object Cancellable {
 }
 
 class Cancellable {
-  private var observers: List[EventObserver[_]] = Nil
+  private var observers: List[Subscription] = Nil
 
   var cancelled = false
-  val onCancel = new Publisher[Cancellable]
+  val onCancel = EventStream[Cancellable]()
 
-  def ::=(o: EventObserver[_]): Unit = {
+  def ::=(o: Subscription): Unit = {
     observers ::= o
   }
 
