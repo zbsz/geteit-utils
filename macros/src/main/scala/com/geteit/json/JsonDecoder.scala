@@ -4,7 +4,7 @@ import java.io.{File, StringReader}
 import java.util.Date
 
 import android.net.Uri
-import com.google.gson.stream.JsonReader
+import com.google.gson.stream.{JsonToken, JsonReader}
 
 import scala.concurrent.duration._
 import scala.language.experimental.macros
@@ -31,14 +31,18 @@ object JsonDecoder {
 
   def decode[T: JsonDecoder](json: String) = implicitly[JsonDecoder[T]].apply(json)
 
-  implicit val IntDecoder: JsonDecoder[Int] = apply(reader => reader.nextInt())
-  implicit val LongDecoder: JsonDecoder[Long] = apply(reader => reader.nextLong())
-  implicit val ShortDecoder: JsonDecoder[Short] = apply(reader => reader.nextInt().toShort)
-  implicit val ByteDecoder: JsonDecoder[Byte] = apply(reader => reader.nextInt().toByte)
-  implicit val DoubleDecoder: JsonDecoder[Double] = apply(reader => reader.nextDouble())
-  implicit val FloatDecoder: JsonDecoder[Float] = apply(reader => reader.nextDouble().toFloat)
-  implicit val BooleanDecoder: JsonDecoder[Boolean] = apply(reader => reader.nextBoolean())
-  implicit val StringDecoder: JsonDecoder[String] = apply(reader => reader.nextString())
+  private def opt[T](defaultValue: T, read: JsonReader => T) = new JsonDecoder[T] {
+    override def apply(reader: JsonReader): T = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); defaultValue } else read(reader)
+  }
+
+  implicit val IntDecoder: JsonDecoder[Int] = opt(0, _.nextInt())
+  implicit val LongDecoder: JsonDecoder[Long] = opt(0L, _.nextLong())
+  implicit val ShortDecoder: JsonDecoder[Short] = opt(0, _.nextInt().toShort)
+  implicit val ByteDecoder: JsonDecoder[Byte] = opt(0, _.nextInt().toByte)
+  implicit val DoubleDecoder: JsonDecoder[Double] = opt(0d, _.nextDouble())
+  implicit val FloatDecoder: JsonDecoder[Float] = opt(0f, _.nextDouble().toFloat)
+  implicit val BooleanDecoder: JsonDecoder[Boolean] = opt(false, _.nextBoolean())
+  implicit val StringDecoder: JsonDecoder[String] = opt("", _.nextString())
   implicit val FileDecoder: JsonDecoder[File] = apply(reader => new File(reader.nextString()))
   implicit val DateDecoder: JsonDecoder[Date] = apply(reader => new Date(reader.nextLong()))
   implicit val UriDecoder: JsonDecoder[Uri] = apply(reader => Uri.parse(reader.nextString()))
