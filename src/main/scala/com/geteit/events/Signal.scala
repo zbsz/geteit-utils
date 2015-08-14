@@ -18,6 +18,8 @@ object Signal {
   def empty[A]: Signal[A] = new ConstSignal[A](None)
   def const[A](v: A): Signal[A] = new ConstSignal[A](Some(v))
   def apply[A, B](s1: Signal[A], s2: Signal[B]): Signal[(A, B)] = new ZipSignal[A ,B](s1, s2)
+  def apply[A, B, C](s1: Signal[A], s2: Signal[B], s3: Signal[C]): Signal[(A, B, C)] = new Zip3Signal[A ,B, C](s1, s2, s3)
+  def apply[A, B, C, D](s1: Signal[A], s2: Signal[B], s3: Signal[C], s4: Signal[D]): Signal[(A, B, C, D)] = new Zip4Signal[A ,B, C, D](s1, s2, s3, s4)
 
   def throttled[A](s: Signal[A], delay: FiniteDuration): Signal[A] = new ThrottlingSignal(s, delay)
 
@@ -226,6 +228,14 @@ class MapSignal[A, B](source: Signal[A], f: A => B) extends ProxySignal[B](sourc
 
 class ZipSignal[A, B](s1: Signal[A], s2: Signal[B]) extends ProxySignal[(A, B)](s1, s2) {
   override protected def computeValue(current: Option[(A, B)]): Option[(A, B)] = for (a <- s1.value; b <- s2.value) yield (a, b)
+}
+
+class Zip3Signal[A, B, C](s1: Signal[A], s2: Signal[B], s3: Signal[C]) extends ProxySignal[(A, B, C)](s1, s2, s3) {
+  override protected def computeValue(current: Option[(A, B, C)]): Option[(A, B, C)] = for (a <- s1.value; b <- s2.value; c <- s3.value) yield (a, b, c)
+}
+
+class Zip4Signal[A, B, C, D](s1: Signal[A], s2: Signal[B], s3: Signal[C], s4: Signal[D]) extends ProxySignal[(A, B, C, D)](s1, s2, s3, s4) {
+  override protected def computeValue(current: Option[(A, B, C, D)]): Option[(A, B, C, D)] = for (a <- s1.value; b <- s2.value; c <- s3.value; d <- s4.value) yield (a, b, c, d)
 }
 
 class FoldLeftSignal[A, B](sources: Signal[A]*)(v: B)(f: (B, A) => B) extends ProxySignal[B](sources: _*) {
