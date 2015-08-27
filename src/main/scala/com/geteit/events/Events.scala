@@ -1,9 +1,9 @@
 package com.geteit.events
 
 import com.geteit.concurrent.Threading
-import com.geteit.util.returning
+import com.geteit.util.{LoggedTry, returning}
 
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.ref.WeakReference
 
 object Events {
@@ -92,7 +92,7 @@ class SignalSubscription[E](source: Signal[E], subscriber: Events.Subscriber[E],
   override def changed(ec: Option[ExecutionContext]): Unit = synchronized {
     source.value foreach { event =>
       if (subscribed) {
-        if (contextSwitch) Future { if (subscribed) subscriber(event) } (executionContext.get)
+        if (contextSwitch) Future { if (subscribed) LoggedTry(subscriber(event))("SignalSubscription") }(executionContext.get)
         else subscriber(event)
       }
     }
@@ -111,7 +111,7 @@ class StreamSubscription[E](source: EventStream[E], subscriber: Events.Subscribe
 
   override def onEvent(event: E, ec: Option[ExecutionContext]): Unit = {
     if (subscribed) {
-      if (contextSwitch) Future { if (subscribed) subscriber(event) } (executionContext.get)
+      if (contextSwitch) Future { if (subscribed) LoggedTry(subscriber(event))("StreamSubscription") } (executionContext.get)
       else subscriber(event)
     }
   }
