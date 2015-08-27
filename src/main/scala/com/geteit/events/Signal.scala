@@ -27,6 +27,7 @@ object Signal {
     override protected def computeValue(current: Option[A]): Option[A] = f
   }
   def foldLeft[A, B](sources: Signal[A]*)(v: B)(f: (B, A) => B): Signal[B] = new FoldLeftSignal[A,B](sources: _*)(v)(f)
+  def sequence[A](sources: Seq[Signal[A]]): Signal[Seq[A]] = new SequenceSignal(sources)
   def and(sources: Signal[Boolean]*): Signal[Boolean] = new FoldLeftSignal[Boolean, Boolean](sources: _*)(true)(_ && _)
   def or(sources: Signal[Boolean]*): Signal[Boolean] = new FoldLeftSignal[Boolean, Boolean](sources: _*)(false)(_ || _)
 
@@ -87,6 +88,8 @@ class Signal[A](@volatile var value: Option[A] = None) extends Observable[Signal
     }
     value
   }
+
+  lazy val onChanged = EventStream.wrap(this)
 
   def get = currentValue.get
 
@@ -243,3 +246,11 @@ class FoldLeftSignal[A, B](sources: Signal[A]*)(v: B)(f: (B, A) => B) extends Pr
     sources.foldLeft(Option(v))((mv, signal) => for (a <- mv; b <- signal.value) yield f(a, b))
 }
 
+class SequenceSignal[A](sources: Seq[Signal[A]]) extends ProxySignal[Seq[A]](sources: _*) {
+  override protected def computeValue(current: Option[Seq[A]]): Option[Seq[A]] = {
+    val b = Seq.newBuilder[A]
+    var empty = false
+    sources.foreach { s => if (!empty) s.value.fold[Any](empty = true)(b += _) }
+    if (empty) None else Some(b.result())
+  }
+}
