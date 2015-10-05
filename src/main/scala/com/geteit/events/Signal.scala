@@ -1,5 +1,7 @@
 package com.geteit.events
 
+import java.util.concurrent.atomic.AtomicBoolean
+
 import com.geteit.concurrent.{CancellableFuture, Threading}
 import com.geteit.events.Events.Subscriber
 import com.geteit.util.Log._
@@ -37,7 +39,7 @@ object Signal {
     } (Threading.global)
   }
 
-  def wrap[A](initial: A, source: EventStream[A]): Signal[A] = new Signal[A](Some(initial)) with EventListener[A] {
+  def wrap[A](source: EventStream[A]): Signal[A] = new Signal[A](None) with EventListener[A] {
     override protected[events] def onEvent(event: A, ec: Option[ExecutionContext]): Unit = set(Some(event), ec)
     override protected def onWire(): Unit = source.subscribe(this)
     override protected def onUnwire(): Unit = source.subscribe(this)
@@ -48,10 +50,16 @@ object Signal {
   implicit def signal_to_value[A](s: Signal[A]): A = s.get
 }
 
-class SourceSignal[A](v: Option[A] = None) extends Signal(v) {
-  def ! (value: A) = publish(value)
-  override def publish(value: A, currentContext: ExecutionContext): Unit = super.publish(value, currentContext)
+trait Source[A] { self: Signal[A] =>
+  def ! (value: A) = try publish(value) catch { case t: Throwable => error("signal processing failed", t)("SourceSignal") }
+  override def publish(value: A, currentContext: ExecutionContext): Unit =
+    try publish(value, currentContext) catch { case t: Throwable => error("signal processing failed", t)("SourceSignal") }
+
+  def mutate(f: A => A): Unit = update(_.map(f))
+  def mutate(f: A => A, default: => A): Unit = update(_.map(f).orElse(Some(default)))
 }
+
+class SourceSignal[A](v: Option[A] = None) extends Signal(v) with Source[A]
 
 trait SignalListener {
   def changed(ec: Option[ExecutionContext]): Unit
@@ -60,17 +68,15 @@ trait SignalListener {
 class Signal[A](@volatile var value: Option[A] = None) extends Observable[SignalListener] with EventSource[A] { self =>
   import Signal.logTag
 
-  protected val cachingDisabled = false
-
   private object updateMonitor
 
-  private[events] def update(f: Option[A] => Option[A], ec: Option[ExecutionContext] = None): Unit = {
+  private[events] def update(f: Option[A] => Option[A], ec: Option[ExecutionContext] = None, notify: Boolean = true): Unit = {
     val changed = updateMonitor.synchronized {
       val next = f(value)
       if (value != next) { value = next; true }
       else false
     }
-    if (changed) notifyListeners(ec)
+    if (changed && notify) notifyListeners(ec)
   }
 
   private[events] def set(v: Option[A], ec: Option[ExecutionContext] = None) =
@@ -89,11 +95,17 @@ class Signal[A](@volatile var value: Option[A] = None) extends Observable[Signal
     value
   }
 
-  lazy val onChanged = EventStream.wrap(this)
+  lazy val onChanged = new EventStream[A] with SignalListener { stream =>
+    override def changed(ec: Option[ExecutionContext]): Unit = stream.synchronized { self.value.foreach(v => dispatch(v, ec)) }
+    override protected def onWire(): Unit = self.subscribe(stream)
+    override protected def onUnwire(): Unit = self.unsubscribe(stream)
+  }
 
   def get = currentValue.get
 
-  def mutate(f: A => A): Unit = update(_.map(f))
+  def head(implicit ev: EventContext) = value.fold(onChanged.next)(CancellableFuture.successful)
+
+  def clear() = set(None)
 
   def zip[B](s: Signal[B]): Signal[(A, B)] = new ZipSignal[A, B](this, s)
   def map[B](f: A => B): Signal[B] = new MapSignal[A, B](this, f)
@@ -134,26 +146,27 @@ class Signal[A](@volatile var value: Option[A] = None) extends Observable[Signal
 class ConstSignal[A](v: Option[A]) extends Signal[A](v) {
   override def subscribe(l: SignalListener): Unit = ()
   override def unsubscribe(l: SignalListener): Unit = ()
-  override private[events] def update(f: (Option[A]) => Option[A], ec: Option[ExecutionContext]): Unit = throw new UnsupportedOperationException("Const signal can not be updated")
+  override private[events] def update(f: (Option[A]) => Option[A], ec: Option[ExecutionContext], notify: Boolean = true): Unit = throw new UnsupportedOperationException("Const signal can not be updated")
   override private[events] def set(v: Option[A], ec: Option[ExecutionContext]): Unit = throw new UnsupportedOperationException("Const signal can not be changed")
 }
 
 class ThrottlingSignal[A](source: Signal[A], delay: FiniteDuration) extends ProxySignal[A](source) {
   import scala.concurrent.duration._
-  override protected val cachingDisabled: Boolean = true
+  private val waiting = new AtomicBoolean(false)
   @volatile private var lastDispatched = 0L
 
   override protected def computeValue(current: Option[A]): Option[A] = source.value
 
-  override private[events] def notifyListeners(ec: Option[ExecutionContext]): Unit = {
-    val time = System.currentTimeMillis()
-    val context = ec.getOrElse(Threading.global)
-    if (lastDispatched < time) {
-      val d = math.max(0, lastDispatched - time + delay.toMillis)
-      lastDispatched = time + d
-      CancellableFuture.delayed(d.millis) { super.notifyListeners(Some(context)) } (context)
+  override private[events] def notifyListeners(ec: Option[ExecutionContext]): Unit =
+    if (waiting.compareAndSet(false, true)) {
+      val context = ec.getOrElse(Threading.global)
+      val d = math.max(0, lastDispatched - System.currentTimeMillis() + delay.toMillis)
+      CancellableFuture.delayed(d.millis) {
+        lastDispatched = System.currentTimeMillis()
+        waiting.set(false)
+        super.notifyListeners(Some(context))
+      } (context)
     }
-  }
 }
 
 class FlatMapSignal[A, B](source: Signal[A], f: A => Signal[B]) extends Signal[B] with SignalListener {
@@ -211,7 +224,7 @@ class ScanSignal[A, B](source: EventStream[A], zero: B)(f: (B, A) => B) extends 
 abstract class ProxySignal[A](sources: Signal[_]*) extends Signal[A] with SignalListener {
   override def onWire(): Unit = {
     sources foreach (_.subscribe(this))
-    value = computeValue(value)
+    update(computeValue, notify = false)
   }
 
   override def onUnwire(): Unit = sources foreach (_.unsubscribe(this))

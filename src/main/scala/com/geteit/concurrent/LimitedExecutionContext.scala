@@ -3,7 +3,7 @@ package com.geteit.concurrent
 import java.util.concurrent.{Executors, ConcurrentLinkedQueue}
 import java.util.concurrent.atomic.AtomicInteger
 
-import com.geteit.util.Log
+import com.geteit.util.Log._
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
@@ -13,12 +13,13 @@ import scala.concurrent.ExecutionContext
  * All tasks are executed on parent execution context.
  */
 class LimitedExecutionContext(concurrencyLimit: Int = 1, parent: ExecutionContext = LimitedExecutionContext.CpuBoundExecutor) extends ExecutionContext {
+  import LimitedExecutionContext._
   require(concurrencyLimit >= 1)
 
   override def execute(runnable: Runnable): Unit = Executor.dispatch(runnable)
 
   override def reportFailure(cause: Throwable): Unit = {
-    Log.error("reportFailure", cause)("LimitedExecutionContext")
+    error("reportFailure", cause)
     parent.reportFailure(cause)
   }
 
@@ -62,6 +63,7 @@ class LimitedExecutionContext(concurrencyLimit: Int = 1, parent: ExecutionContex
 }
 
 object LimitedExecutionContext {
+  private implicit val tag: LogTag = "LimitedExecutionContext"
   /**
    * Maximum number of tasks to execute in single batch.
    * Used to prevent starving of other contexts using common parent.

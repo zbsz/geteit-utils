@@ -12,9 +12,9 @@ object Threading {
 
   implicit val image: ExecutionContext = LimitedExecutionContext.CpuBoundExecutor
 
-  implicit val ui: ExecutionContext = new ExecutionContext {
-    val handler = new Handler(Looper.getMainLooper)
-    override def reportFailure(cause: Throwable): Unit = Log.error("failure reported", cause)("Threading.ui")
-    override def execute(runnable: Runnable): Unit = handler.post(runnable)
-  }
+  implicit val ui: ExecutionContext = new LimitedExecutionContext(1, new ExecutionContext {
+      val handler = new Handler(Looper.getMainLooper)
+      override def reportFailure(cause: Throwable): Unit = Log.error("failure reported", cause)("Threading.ui")
+      override def execute(runnable: Runnable): Unit = handler.post(runnable)
+    })
 }

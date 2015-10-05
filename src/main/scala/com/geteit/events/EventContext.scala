@@ -2,7 +2,7 @@ package com.geteit.events
 
 import android.app.Service
 import android.support.v4.app.Fragment
-import android.content.Loader
+import android.support.v4.content.Loader
 import android.view.View
 import com.geteit.util.Log._
 
