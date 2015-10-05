@@ -87,7 +87,7 @@ object JsonDecoder {
     def readValue(tpe: Type, reader: TermName, fallbackImplicit: Boolean = true): Tree = {
       tpe.typeSymbol.name.toString match {
         case "Option" => q"if ($reader.peek() == JsonToken.NULL) { $reader.skipValue(); None } else Option(${readValue(tpe.typeArgs.head, reader)})"
-        case "Seq" | "Array" | "List" | "Set" => readArray(tpe, reader)
+        case "Seq" | "Array" | "List" | "Set" | "IndexedSeq" | "ArrayBuffer"  => readArray(tpe, reader)
         case "Map" => readMap(tpe, reader)
         case _ if !fallbackImplicit && tpe.typeSymbol.isClass && tpe.typeSymbol.asClass.isCaseClass => readCaseClass(tpe, reader)
         case _ => implicitDecoder(tpe, reader)

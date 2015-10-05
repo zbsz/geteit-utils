@@ -136,7 +136,7 @@ object JsonEncoder {
         val tmp = TermName("$$v")
         val wr = write(c)(tpe.typeArgs.head, tmp, writer)
         q"$value.fold($writer.nullValue()){ ${Ident(tmp)} => $wr}"
-      case "Seq" | "Array" | "List" | "Set" =>
+      case "Seq" | "Array" | "List" | "Set" | "IndexedSeq" | "ArrayBuffer" =>
         val tmp = TermName("$param")
         val wr = write(c)(tpe.typeArgs.head, tmp, writer)
         val fn = Function(List(ValDef(Modifiers(Flag.PARAM), tmp, TypeTree(), EmptyTree)), wr)
