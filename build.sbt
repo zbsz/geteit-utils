@@ -31,26 +31,19 @@ lazy val macros = project
 
 lazy val buildSettings = Seq(
   organization := "com.geteit",
-  version := "0.3-SNAPSHOT",
-  scalaVersion := "2.11.6",
-  crossScalaVersions := Seq("2.10.5", "2.11.6"),
+  version := "0.3",
+  scalaVersion := "2.11.7",
+  crossScalaVersions := Seq("2.10.5", "2.11.7"),
   scalacOptions ++= Seq(
     "-deprecation",
     "-feature",
     "-unchecked"
   ),
   resolvers ++= Seq(
-    "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository",
-    "RoboTest releases" at "https://raw.github.com/zbsz/mvn-repo/master/releases/",
+    Resolver.mavenLocal,
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases")
   ),
-  publishTo := {
-    if (version.value.trim.endsWith("SNAPSHOT"))
-      Some(Resolver.file("snapshots", new File("../mvn-repo/snapshots" )) )
-    else
-      Some(Resolver.file("releases", new File("../mvn-repo/releases" )) )
-  },
   fork in Test := true,
   publishArtifact in Test := false,
   javaOptions in Test ++= Seq("-XX:MaxPermSize=2048M", "-XX:+CMSClassUnloadingEnabled"),
