@@ -34,6 +34,14 @@ object JsonEncoder {
     override def apply(v: T, writer: JsonWriter): Unit = f(writer, v)
   }
 
+  def encode[T: JsonEncoder](v: T): String = implicitly[JsonEncoder[T]].apply(v).toString
+
+  def encode[T: JsonEncoder](v: T, writer: JsonWriter) = implicitly[JsonEncoder[T]].apply(v, writer)
+
+  def on[A, B: JsonEncoder](f: A => B): JsonEncoder[A] = apply { (w, v) =>
+    implicitly[JsonEncoder[B]].apply(f(v), w)
+  }
+
   implicit val FileEncoder: JsonEncoder[File] = apply((w, f) => w.value(f.getAbsolutePath))
   implicit val DateEncoder: JsonEncoder[Date] = apply((w, d) => w.value(d.getTime))
   implicit val UriEncoder: JsonEncoder[Uri] = apply((w, u) => w.value(u.toString))
@@ -136,7 +144,7 @@ object JsonEncoder {
         val tmp = TermName("$$v")
         val wr = write(c)(tpe.typeArgs.head, tmp, writer)
         q"$value.fold($writer.nullValue()){ ${Ident(tmp)} => $wr}"
-      case "Seq" | "Array" | "List" | "Set" | "IndexedSeq" | "ArrayBuffer" =>
+      case "Seq" | "Array" | "List" | "Set" | "IndexedSeq" | "ArrayBuffer" | "TreeSet" =>
         val tmp = TermName("$param")
         val wr = write(c)(tpe.typeArgs.head, tmp, writer)
         val fn = Function(List(ValDef(Modifiers(Flag.PARAM), tmp, TypeTree(), EmptyTree)), wr)

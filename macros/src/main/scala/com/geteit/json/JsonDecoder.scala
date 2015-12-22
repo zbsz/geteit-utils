@@ -29,7 +29,11 @@ object JsonDecoder {
     override def apply(reader: JsonReader): T = f(reader)
   }
 
-  def decode[T: JsonDecoder](json: String) = implicitly[JsonDecoder[T]].apply(json)
+  def decode[T: JsonDecoder](json: String): T = implicitly[JsonDecoder[T]].apply(json)
+
+  def decode[T: JsonDecoder](reader: JsonReader): T = implicitly[JsonDecoder[T]].apply(reader)
+
+  def on[A, B: JsonDecoder](f: B => A): JsonDecoder[A] = apply { reader => f(implicitly[JsonDecoder[B]].apply(reader)) }
 
   private def opt[T](defaultValue: T, read: JsonReader => T) = new JsonDecoder[T] {
     override def apply(reader: JsonReader): T = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); defaultValue } else read(reader)
@@ -87,7 +91,7 @@ object JsonDecoder {
     def readValue(tpe: Type, reader: TermName, fallbackImplicit: Boolean = true): Tree = {
       tpe.typeSymbol.name.toString match {
         case "Option" => q"if ($reader.peek() == JsonToken.NULL) { $reader.skipValue(); None } else Option(${readValue(tpe.typeArgs.head, reader)})"
-        case "Seq" | "Array" | "List" | "Set" | "IndexedSeq" | "ArrayBuffer"  => readArray(tpe, reader)
+        case "Seq" | "Array" | "List" | "Set" | "IndexedSeq" | "ArrayBuffer" | "TreeSet" => readArray(tpe, reader)
         case "Map" => readMap(tpe, reader)
         case _ if !fallbackImplicit && tpe.typeSymbol.isClass && tpe.typeSymbol.asClass.isCaseClass => readCaseClass(tpe, reader)
         case _ => implicitDecoder(tpe, reader)
