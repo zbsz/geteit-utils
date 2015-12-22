@@ -21,8 +21,8 @@ object GtContext {
   var Global: GtContext = null
 
   object globals {
-    implicit val context = GtContext.Global
-    implicit val eventContext = EventContext.Global
+    implicit def context = GtContext.Global
+    implicit def eventContext = EventContext.Global
   }
 
   val onContextResumed = new Publisher[GtContext]
@@ -107,9 +107,9 @@ trait GtContext extends Context with Injector {
   val ctxConfigChanged = new Publisher[Configuration] with ForcedEventSource[Configuration]
   val ctxOnActivityResult = new Publisher[(Int, Int, Intent)] with ForcedEventSource[(Int, Int, Intent)]
 
-  lazy val module: Module = {
+  lazy val module: Injector = {
     verbose(s"context: $this, create module")("GtContext")
-    GtApplication.APP_INSTANCE.contextModule(this) :: ImmutableWrapper(getApplicationContext.asInstanceOf[GtApplication].module)
+    GtApplication.APP_INSTANCE.contextModule(this) :: getApplicationContext.asInstanceOf[GtApplication].module
   }
 
   override def binding[T: Manifest] = module.binding[T]

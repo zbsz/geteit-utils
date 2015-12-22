@@ -3,7 +3,7 @@ package com.geteit.app
 import android.app.Application
 import com.geteit.events.Publisher
 import com.geteit.inject
-import com.geteit.inject.{GtContextModule, Module}
+import com.geteit.inject.{Injector, GtContextModule, Module}
 
 object GtApplication {
   var APP_INSTANCE: GtApplication = null
@@ -18,9 +18,9 @@ class GtApplication extends Application with GtContext {
   GtContext.Global = this
   GtApplication.APP_INSTANCE = this
 
-  override lazy val module: Module = inject.GtModule
+  override lazy val module: Injector = inject.GtModule
 
-  def contextModule(ctx: GtContext): Module = GtContextModule(ctx)
+  def contextModule(ctx: GtContext): Injector = GtContextModule(ctx)
 
   override def onCreate() {
     super.onCreate()

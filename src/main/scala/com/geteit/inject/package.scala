@@ -8,7 +8,7 @@ import com.geteit.events.EventContext
 
 package object inject {
 
-  def GtModule = Module { bind =>
+  def GtModule = new Module {
     val ctx = GtApplication.APP_INSTANCE
     bind [Context] to ctx
     bind [Application] to ctx
@@ -17,8 +17,7 @@ package object inject {
     bind [ActivityManager] to ctx.getSystemService(Context.ACTIVITY_SERVICE).asInstanceOf[ActivityManager]
   }
 
-  def GtContextModule(ctx: GtContext) = Module { implicit bind =>
-
+  def GtContextModule(ctx: GtContext) = new Module {
     bind [Context] to ctx
     bind [GtContext] to ctx
     bind [EventContext] to ctx.eventContext
@@ -29,6 +28,6 @@ package object inject {
       }
       getActivity(ctx)
     }
-    bind [FragmentManager] to bind.inject[Activity].asInstanceOf[FragmentActivity].getSupportFragmentManager
+    bind [FragmentManager] to inject[Activity].asInstanceOf[FragmentActivity].getSupportFragmentManager
   }
 }
