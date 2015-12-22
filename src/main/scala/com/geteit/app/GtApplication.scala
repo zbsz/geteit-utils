@@ -25,9 +25,11 @@ class GtApplication extends Application with GtContext {
   override def onCreate() {
     super.onCreate()
     publishCreate()
+    publishResume()
   }
 
   override def onTerminate() {
+    publishPause()
     publishDestroy()
     super.onTerminate()
   }
