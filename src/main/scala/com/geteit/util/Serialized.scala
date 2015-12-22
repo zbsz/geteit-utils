@@ -14,9 +14,10 @@ object Serialized {
     val future = locks.get(key).fold(body) { lock =>
       CancellableFuture.lift(lock.recover { case _ => }) flatMap(_ => body)
     }
-    locks += (key -> future.future)
+    val lock = future.future
+    locks += (key -> lock)
     future.onComplete {
-      case _ => if (locks.get(key).contains(future)) locks -= key
+      case _ => if (locks.get(key).contains(lock)) locks -= key
     }
     future
   }.flatten
