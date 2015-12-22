@@ -9,7 +9,7 @@ import com.geteit.util.Log._
 import scala.ref.WeakReference
 
 trait EventContext {
-  private implicit val logTag: LogTag = logTagFor[EventContext]
+  import EventContext._
 
   private object lock
 
@@ -71,6 +71,7 @@ trait EventContext {
 }
 
 object EventContext {
+  private implicit val logTag: LogTag = logTagFor[EventContext]
 
   object Implicits {
     implicit val global: EventContext = EventContext.Global

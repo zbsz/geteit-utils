@@ -110,6 +110,11 @@ class Signal[A](@volatile var value: Option[A] = None) extends Observable[Signal
   def zip[B](s: Signal[B]): Signal[(A, B)] = new ZipSignal[A, B](this, s)
   def map[B](f: A => B): Signal[B] = new MapSignal[A, B](this, f)
   def filter(f: A => Boolean): Signal[A] = new FilterSignal(this, f)
+  def collect[B](pf: PartialFunction[A, B]): Signal[B] = new ProxySignal[B](this) {
+    override protected def computeValue(current: Option[B]): Option[B] = self.value flatMap { v =>
+      pf.andThen(Some(_)).applyOrElse(v, { _: A => None })
+    }
+  }
   def flatMap[B](f: A => Signal[B]): Signal[B] = new FlatMapSignal[A, B](this, f)
   def combine[B, C](s: Signal[B])(f: (A, B) => C): Signal[C] = new ProxySignal[C](this, s) {
     override protected def computeValue(current: Option[C]): Option[C] = for (a <- self.value; b <- s.value) yield f(a, b)
