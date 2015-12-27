@@ -88,12 +88,16 @@ abstract class BaseSubscription(context: WeakReference[EventContext]) extends Su
 
 class SignalSubscription[E](source: Signal[E], subscriber: Events.Subscriber[E], executionContext: Option[ExecutionContext] = None)(implicit context: WeakReference[EventContext]) extends BaseSubscription(context) with SignalListener {
   private val contextSwitch = executionContext.exists(ec => !source.executionContext.contains(ec))
+  private var prev: E = _
 
   override def changed(ec: Option[ExecutionContext]): Unit = synchronized {
     source.value foreach { event =>
-      if (subscribed) {
-        if (contextSwitch) Future { if (subscribed) LoggedTry(subscriber(event))("SignalSubscription") }(executionContext.get)
-        else subscriber(event)
+      if (event != prev) {
+        prev = event
+        if (subscribed) {
+          if (contextSwitch) Future { if (subscribed) LoggedTry(subscriber(event))("SignalSubscription") }(executionContext.get)
+          else subscriber(event)
+        }
       }
     }
   }

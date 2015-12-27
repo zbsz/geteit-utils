@@ -137,11 +137,9 @@ trait GtContext extends Context with Injector {
 
   protected def publishPause() {
     ctxPause ! null
-    eventContext.onContextStop()
   }
 
   protected def publishResume() {
-    eventContext.onContextStart()
     ctxResume ! null
     GtContext.onContextResumed ! this
   }
@@ -152,6 +150,16 @@ trait GtActivityContext extends Activity with GtContext {
   protected override def onCreate(savedInstanceState: Bundle) {
     super.onCreate(savedInstanceState)
     publishCreate()
+  }
+
+  override def onStart(): Unit = {
+    super.onStart()
+    eventContext.onContextStart()
+  }
+
+  override def onStop(): Unit = {
+    eventContext.onContextStop()
+    super.onStop()
   }
 
   protected override def onResume() {

@@ -89,13 +89,13 @@ object EventContext {
 
 trait FragmentEventContext extends Fragment with EventContext {
 
-  override def onResume(): Unit = {
+  override def onStart(): Unit = {
     onContextStart()
-    super.onResume()
+    super.onStart()
   }
 
-  override def onPause(): Unit = {
-    super.onPause()
+  override def onStop(): Unit = {
+    super.onStop()
     onContextStop()
   }
 
