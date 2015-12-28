@@ -1,11 +1,13 @@
 package com.geteit.events
 
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{FeatureSpec, Matchers, RobolectricSuite}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class SignalSpec extends FeatureSpec with Matchers with RobolectricSuite {
+class SignalSpec extends FeatureSpec with Matchers with RobolectricSuite with ScalaFutures {
+  import EventContext.Implicits.global
 
   feature("Threading") {
     import com.geteit.concurrent.Threading.global
@@ -34,8 +36,15 @@ class SignalSpec extends FeatureSpec with Matchers with RobolectricSuite {
     }
   }
 
+  feature("head") {
+
+    scenario("get head of filtered signal") {
+      val source = Signal(1)
+      source.filter(_ == 1).head.future.futureValue shouldEqual 1
+    }
+  }
+
   def waitForValue(signal: Signal[Int], timeout: FiniteDuration = 100.millis) = {
-    import EventContext.Implicits.global
     @volatile var res = -1
     val sub = signal { res = _ }
     Thread.sleep(timeout.toMillis)

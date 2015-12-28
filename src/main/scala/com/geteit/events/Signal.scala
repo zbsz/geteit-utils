@@ -8,7 +8,7 @@ import com.geteit.util.Log._
 import com.geteit.util._
 
 import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Promise, ExecutionContext, Future}
 import scala.ref.WeakReference
 
 object Signal {
@@ -103,7 +103,14 @@ class Signal[A](@volatile var value: Option[A] = None) extends Observable[Signal
 
   def get = currentValue.get
 
-  def head(implicit ev: EventContext) = value.fold(onChanged.next)(CancellableFuture.successful)
+  def head(implicit ev: EventContext) = value match {
+    case Some(v) => CancellableFuture successful v
+    case None =>
+      val p = Promise[A]()
+      val o = apply { p.trySuccess(_) }
+      p.future.onComplete(_ => o.destroy())(Threading.global)
+      new CancellableFuture(p)
+  }
 
   def clear() = set(None)
 
