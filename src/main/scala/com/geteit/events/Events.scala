@@ -40,7 +40,7 @@ trait ForcedEventSource[E] extends EventSource[E] {
   abstract override def apply(subscriber: Events.Subscriber[E])(implicit context: EventContext): Subscription = returning(super.apply(subscriber))(_.disablePauseWithContext())
 }
 
-abstract class BaseSubscription(context: WeakReference[EventContext]) extends Subscription {
+abstract class BaseSubscription[E](context: WeakReference[EventContext], subscriber: Events.Subscriber[E], executionContext: Option[ExecutionContext]) extends Subscription {
   @volatile protected[events] var subscribed = false
   private var enabled = false
   private var pauseWithContext = true
@@ -64,6 +64,12 @@ abstract class BaseSubscription(context: WeakReference[EventContext]) extends Su
     }
   }
 
+  protected def notify(event: E, ec: Option[ExecutionContext]) =
+    if (subscribed) {
+      if (executionContext.isDefined && executionContext != ec) Future { if (subscribed) LoggedTry(subscriber(event))("BaseSubscription") }(executionContext.get)
+      else subscriber(event)
+    }
+
   def enable(): Unit =
     context.get foreach { context =>
       enabled = true
@@ -86,18 +92,15 @@ abstract class BaseSubscription(context: WeakReference[EventContext]) extends Su
   }
 }
 
-class SignalSubscription[E](source: Signal[E], subscriber: Events.Subscriber[E], executionContext: Option[ExecutionContext] = None)(implicit context: WeakReference[EventContext]) extends BaseSubscription(context) with SignalListener {
-  private val contextSwitch = executionContext.exists(ec => !source.executionContext.contains(ec))
+class SignalSubscription[E](source: Signal[E], subscriber: Events.Subscriber[E], executionContext: Option[ExecutionContext] = None)(implicit context: WeakReference[EventContext])
+  extends BaseSubscription[E](context, subscriber, executionContext) with SignalListener {
   private var prev: E = _
 
   override def changed(ec: Option[ExecutionContext]): Unit = synchronized {
     source.value foreach { event =>
       if (event != prev) {
         prev = event
-        if (subscribed) {
-          if (contextSwitch) Future { if (subscribed) LoggedTry(subscriber(event))("SignalSubscription") }(executionContext.get)
-          else subscriber(event)
-        }
+        notify(event, ec)
       }
     }
   }
@@ -110,15 +113,10 @@ class SignalSubscription[E](source: Signal[E], subscriber: Events.Subscriber[E],
   override protected[events] def onUnsubscribe(): Unit = source.unsubscribe(this)
 }
 
-class StreamSubscription[E](source: EventStream[E], subscriber: Events.Subscriber[E], executionContext: Option[ExecutionContext] = None)(implicit context: WeakReference[EventContext]) extends BaseSubscription(context) with EventListener[E] {
-  private val contextSwitch = executionContext.exists(ec => !source.executionContext.contains(ec))
+class StreamSubscription[E](source: EventStream[E], subscriber: Events.Subscriber[E], executionContext: Option[ExecutionContext] = None)(implicit context: WeakReference[EventContext])
+  extends BaseSubscription[E](context, subscriber, executionContext) with EventListener[E] {
 
-  override def onEvent(event: E, ec: Option[ExecutionContext]): Unit = {
-    if (subscribed) {
-      if (contextSwitch) Future { if (subscribed) LoggedTry(subscriber(event))("StreamSubscription") } (executionContext.get)
-      else subscriber(event)
-    }
-  }
+  override def onEvent(event: E, ec: Option[ExecutionContext]): Unit = notify(event, ec)
 
   override protected[events] def onSubscribe(): Unit = source.subscribe(this)
 

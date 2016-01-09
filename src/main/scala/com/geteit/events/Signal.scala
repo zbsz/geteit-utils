@@ -51,9 +51,9 @@ object Signal {
 }
 
 trait Source[A] { self: Signal[A] =>
-  def ! (value: A) = try publish(value) catch { case t: Throwable => error("signal processing failed", t)("SourceSignal") }
+  def ! (value: A) = try set(Some(value)) catch { case t: Throwable => error("signal processing failed", t)("SourceSignal") }
   override def publish(value: A, currentContext: ExecutionContext): Unit =
-    try publish(value, currentContext) catch { case t: Throwable => error("signal processing failed", t)("SourceSignal") }
+    try set(Some(value), Option(currentContext)) catch { case t: Throwable => error("signal processing failed", t)("SourceSignal") }
 
   def mutate(f: A => A): Unit = update(_.map(f))
   def mutate(f: A => A, default: => A): Unit = update(_.map(f).orElse(Some(default)))
@@ -145,7 +145,7 @@ class Signal[A](@volatile var value: Option[A] = None) extends Observable[Signal
   protected def onUnwire(): Unit = ()
 
   override def on(ec: ExecutionContext)(subscriber: Subscriber[A])(implicit eventContext: EventContext): Subscription = returning(new SignalSubscription[A](this, subscriber, Some(ec))(WeakReference(eventContext)))(_.enable())
-  override def apply(subscriber: Subscriber[A])(implicit eventContext: EventContext): Subscription = returning(new SignalSubscription[A](this, subscriber, None)(WeakReference(eventContext)))(_.enable())
+  override def apply(subscriber: Subscriber[A])(implicit eventContext: EventContext): Subscription = returning(new SignalSubscription[A](this, subscriber, executionContext)(WeakReference(eventContext)))(_.enable())
 
   protected def publish(value: A): Unit = set(Some(value))
   protected def publish(value: A, currentContext: ExecutionContext): Unit = set(Some(value), Some(currentContext))
