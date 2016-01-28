@@ -31,7 +31,7 @@ lazy val macros = project
 
 lazy val buildSettings = Seq(
   organization := "com.geteit",
-  version := "0.4-SNAPSHOT",
+  version := "0.4",
   scalaVersion := "2.11.7",
   crossScalaVersions := Seq("2.10.5", "2.11.7"),
   scalacOptions ++= Seq(
