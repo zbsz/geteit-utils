@@ -104,8 +104,8 @@ class Signal[A](@volatile var value: Option[A] = None) extends Observable[Signal
   def get = currentValue.get
 
   def head(implicit ev: EventContext) = value match {
-    case Some(v) => CancellableFuture successful v
-    case None =>
+    case Some(v) if wired => CancellableFuture successful v
+    case _ =>
       val p = Promise[A]()
       val o = apply { p.trySuccess(_) }
       p.future.onComplete(_ => o.destroy())(Threading.global)

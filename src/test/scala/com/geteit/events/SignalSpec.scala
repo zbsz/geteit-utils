@@ -107,6 +107,14 @@ class SignalSpec extends FeatureSpec with Matchers with RobolectricSuite with Sc
       val source = Signal(10)
       source.filter(_ == 10).head.future.futureValue shouldEqual 10
     }
+
+    scenario("get head of unwired map signal") {
+      val source = Signal(10)
+      val signal = source map { _ + 1 }
+      signal.head.future.futureValue shouldEqual 11
+      source ! 20
+      signal.head.future.futureValue shouldEqual 21
+    }
   }
 
   def waitForValue(signal: Signal[Int], timeout: FiniteDuration = 100.millis) = {
