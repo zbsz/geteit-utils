@@ -44,7 +44,7 @@ class InjectableSpec extends FeatureSpec with Matchers with RobolectricSuite {
   }
 
   scenario("inject local storage in each service module") {
-    implicit val injector = ControllerModule :: ServiceModule :: ServiceModule2
+    implicit val injector = ControllerModule :: ServiceModule2 :: ServiceModule
 
     val obj = new Injectable {}
     val serv1 = obj.inject[Service]
@@ -56,7 +56,7 @@ class InjectableSpec extends FeatureSpec with Matchers with RobolectricSuite {
   }
 
   scenario("inject global") {
-    implicit val injector = ControllerModule :: ServiceModule :: ServiceModule2
+    implicit val injector = ControllerModule :: ServiceModule2 :: ServiceModule
 
     val obj = new Injectable {}
     val serv2 = obj.inject[Service2]

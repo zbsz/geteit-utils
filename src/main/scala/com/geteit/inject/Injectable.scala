@@ -1,6 +1,5 @@
 package com.geteit.inject
 
-import scala.Predef
 import scala.reflect.Manifest
 
 trait Injectable {
@@ -19,23 +18,20 @@ case class Singleton[T](fn: () => T) extends (() => T) {
 trait Injector { self =>
   def binding[T: Manifest]: Option[() => T]
 
+  private[inject] var parent = Option.empty[Injector]
+
   def ::(inj: Injector) = new Injector {
-    override def binding[T: Predef.Manifest]: Option[() => T] = inj.binding.orElse(self.binding)
+    inj.parent = Some(self)
+
+    override def binding[T: Predef.Manifest]: Option[() => T] = inj.binding[T].orElse(parent.flatMap(_.binding[T]))
+
+    override def toString: String = s"Injector($inj :: $self)"
   }
-}
-
-class ImmutableWrapper(module: Module) extends Injector {
-  override def binding[T: Predef.Manifest]: Option[() => T] = module.binding[T]
-}
-
-object ImmutableWrapper {
-  def apply(m: Module) = new ImmutableWrapper(m)
 }
 
 class Module extends Injector with Injectable {
   protected implicit val inj: Injector = this
 
-  private[inject] var parent = Option.empty[Injector]
   private[inject] val bindings = new scala.collection.mutable.HashMap[Manifest[_], () => _]
 
   protected class Binding[T](cls: Manifest[T]) {
@@ -50,21 +46,5 @@ class Module extends Injector with Injectable {
 
   private[inject] def internal[T](m: Manifest[T]) = bindings.get(m).asInstanceOf[Option[() => T]]
 
-  def ::(m: Module) = new ModuleChain(Seq(m, this))
-}
-
-class ModuleChain(modules: Seq[Module]) extends Injector {
-  modules.foreach(_.parent = Some(this))
-
-  private val cache = new scala.collection.mutable.HashMap[Manifest[_], Option[() => _]]
-
-  private def internal[T](m: Manifest[T]) =
-    modules.iterator.map(_.internal(m)).collectFirst { case Some(f) => f }
-
-  override def binding[T: Predef.Manifest] = {
-    val m = implicitly[Manifest[T]]
-    cache.getOrElseUpdate(m, internal(m)).asInstanceOf[Option[() => T]]
-  }
-
-  def ::(m: Module) = new ModuleChain(m +: modules)
+  override def toString: String = s"Module(bindings: $bindings, parent: $parent)"
 }
